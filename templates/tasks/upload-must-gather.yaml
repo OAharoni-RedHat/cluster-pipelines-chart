@@ -1,0 +1,54 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upload-must-gather
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: Upload must-gather archive
+  workspaces:
+    - name: must-gather
+  volumes:
+  - name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
+    secret:
+      secretName: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
+  params:
+    - name: pipelinerun-id
+      type: string
+    - name: pipeline-name
+      type: string
+    - name: aws-bucket
+      type: string
+      default: "validated-patterns-ci-tests-poc"
+  steps:
+    - name: upload-must-gathers
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
+      volumeMounts:
+      - name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
+        mountPath: /tekton/home/.aws
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        SRC="$(workspaces.must-gather.path)"
+
+        PIPELINE_NAME=$(params.pipeline-name)
+        PIPELINERUN_ID=$(params.pipelinerun-id)
+
+        ARCHIVE="/tmp/${PIPELINE_NAME}_${PIPELINERUN_ID}.gz"
+
+        AWS_BUCKET=$(params.aws-bucket)
+
+        export AWS_ACCESS_KEY_ID="$(cat /tekton/home/.aws/aws_access_key_id)"
+        export AWS_SECRET_ACCESS_KEY="$(cat /tekton/home/.aws/aws_secret_access_key)"
+        export AWS_DEFAULT_REGION=eu-north-1
+
+        if [[ -f /tekton/home/.aws/aws_default_region ]]; then
+            export AWS_DEFAULT_REGION="$(cat /tekton/home/.aws/aws_default_region)"
+        fi
+
+        tar -C "$SRC" -czf "$ARCHIVE" .
+
+        aws s3 cp ${ARCHIVE}  "s3://${AWS_BUCKET}/must-gathers/${PIPELINE_NAME}_${PIPELINERUN_ID}.gz"
+

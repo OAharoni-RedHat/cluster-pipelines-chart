@@ -1,0 +1,17 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: slack-notify-failure
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: Notify Slack when a pipeline run fails
+  params:
+  steps:
+    - name: slack-notify
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
+      script: |
+        #!/usr/bin/env bash
+        # TODO: Slack notification on failure
+        echo "Pipeline failed"

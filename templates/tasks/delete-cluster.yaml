@@ -1,0 +1,24 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: delete-cluster
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: >
+    Delete a cluster via Hive teardown.
+  params:
+    - name: cluster-name
+      type: string
+      default: ""
+    - name: namespace
+      type: string
+      default: {{ .Values.qeCIPipelines.defaults.namespace }}
+  steps:
+    - name: delete-hive-cluster
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        oc delete -n $(params.namespace) clusterdeployment/$(params.cluster-name)

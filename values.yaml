@@ -41,3 +41,162 @@ hypershift:
 hive:
   defaultControlPlaneReplicas: "3"
   defaultWorkerReplicas: "3"
+
+global:
+  hubClusterDomain: apps.hcp.aws.validatedpatterns.io
+
+qeCIPipelines:
+  defaults:
+    namespace: vp-qe-ci
+    platforms:
+      aws:
+        region: us-east-1
+        baseDomain: aws.validatedpatterns.io
+        controlPlaneIAMRole: vp-ocp-ControlPlane-Role
+        computeNodeIAMRole: vp-ocp-Worker-Role
+        credentialName: qe-ci-aws-creds
+      gcp:
+        region: us-central1
+        baseDomain: gcp.validatedpatterns.io
+        projectId: rh-patterns
+        credentialName: qe-ci-gcp-creds
+      azure:
+        region: westus3
+        baseDomain: azure.validatedpatterns.io
+        baseDomainResourceGroup: os4-common
+        credentialName: qe-ci-azure-creds
+    ocp_versions:
+      - "4.18"
+      - "4.20"
+      - "4.21"
+    flavors: # These are the pipeline "types"
+      # List form: [single, multi] — clusterGroup defaults to hub;
+      # override with map form, e.g. single: { clusterGroup: standalone }
+      # sets TARGET_CLUSTERGROUP during install and test time
+      single: # This will be a hive made regular single cluster
+        clusterGroup: hub
+      multi: # This will be a hive made regular hub and spoke cluster
+        clusterGroup: hub
+      hosted: # This will be just a single hub cluster setup with hcp hosted clusters
+        clusterGroup: hub
+        platforms: # Only aws supports hosted cluster deployments
+          - aws
+    networking:
+      networkType: OVNKubernetes
+      clusterNetwork:
+        - cidr: 10.128.0.0/14
+          hostPrefix: 23
+      machineNetwork:
+        - cidr: 10.0.0.0/16
+      serviceNetwork:
+        - 172.30.0.0/16
+    mustGatherImg: quay.io/validatedpatterns/must-gather
+    utilityContainerImg: quay.io/validatedpatterns/utility-container
+    # Tekton per-task timeout for provision-* pipeline tasks (oc wait on clusterdeployment/hostedcluster).
+    provisionTaskTimeout: 2h
+    hcpARN: arn:aws:iam::296267305927:role/hypershift_cli_role
+
+  patterns:
+    # These are the maintained tier
+    mcg:
+      repo: https://github.com/validatedpatterns/multicloud-gitops.git
+      flavors:
+        single:
+          clusterGroup: standalone
+        multi:
+        hosted:
+          clusterGroup: standalone
+    ansible-edge:
+      repo: https://github.com/darkdoc/ansible-edge-gitops.git
+      revision: pipeline_test
+      platforms: #if empty, or unset it will be the defaults.platforms
+        aws:
+      flavors:
+        single:
+      # Pre-created Secrets in qeCIPipelines.defaults.namespace;
+      # workspace name matches secret name (underscores become hyphens). Bind each at PipelineRun / in UI.
+      secrets:
+        - aeg-secret-values-file # oc create secret generic aeg-secret-values-file  -n vp-qe-ci --from-file=values-secret.yaml=aeg-qe-values-secret.yaml
+        - aeg-aap-manifest-file  # oc create secret generic aeg-aap-manifest-file -n vp-qe-ci --from-file=aap_manifest.zip=/home/aeros/Downloads/manifest_vp-aeros_20260709T084257Z.zip
+        - aeg-aap-ssh-file       # oc create secret generic aeg-aap-ssh-file -n vp-qe-ci --from-file=id_rsa=aeg-qe-ssh --from-file=id_rsa.pub=aeg-qe-ssh.pub
+
+    # industrial-edge:
+    #   repo: https://github.com/validatedpatterns/industrial-edge.git
+    #   flavors:
+    #     - multi
+    #   secrets:
+    #     - industrial-edge-secret-values-file
+
+    # medical-diag:
+    #   repo: https://github.com/validatedpatterns/medical-diagnosis.git
+    #   flavors:
+    #     - single
+
+    # These are the tested tier
+    layered-zero:
+      repo: https://github.com/darkdoc/layered-zero-trust.git
+      revision: pipeline_test
+      flavors:
+        single:
+          clusterGroup: ci
+
+    # travelops:
+    #   repo: https://github.com/validatedpatterns/travelops.git
+    #   flavors:
+    #     - single
+
+    # hypershift:
+    #   repo: https://github.com/validatedpatterns-sandbox/hypershift
+    #   flavors:
+    #     - hosted
+    #     - single
+
+    # ragllm:
+    #   platforms:
+    #     aws:
+    #   flavors:
+    #     single:
+
+  scheduleDefaults:
+    suspend: false
+    concurrencyPolicy: Forbid
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 3
+    workspaceStorage: 1Gi
+    timeout: 3h
+    taskTimeout: 2h
+    finallyTimeout: 30m
+    # triggerImage: registry.redhat.io/openshift4/ose-cli:latest
+
+  # Each entry creates a CronJob that starts a PipelineRun for an existing pipeline.
+  # cron schedules are started on UTC times
+  schedules:
+    - pipeline: mcg-aws-4-18-multi
+      cron: "0 6 * * 1" # Monday 6:00 UTC
+    - pipeline: mcg-gcp-4-20-multi
+      cron: "0 6 * * 2" # Tuesday 6:00 UTC
+    - pipeline: mcg-azure-4-20-single
+      cron: "0 6 * * 3" # Wednesday 6:00 UTC
+    # - pipeline: ansible-edge-aws-4-21-single
+    #   cron: "0 6 * * 3" # Wed 6:00 UTC
+    #   timeout: 4h
+    #   taskTimeout: 3h
+    #   finallyTimeout: 30m
+    # - pipeline: ansible-edge-aws-4-20-single
+    #   cron: "0 6 * * 5" # Fri 6:00 UTC
+    #   timeout: 4h
+    #   taskTimeout: 3h
+    #   finallyTimeout: 30m
+    # - pipeline: layered-zero-aws-4-21-single
+    #   cron: "0 6 * * 2" # Tue 6:00 UTC
+    #   timeout: 4h
+    #   taskTimeout: 3h
+    #   finallyTimeout: 30m
+    # - pipeline: ansible-edge-aws-4-21-single
+    #   cron: "0 3 * * 0"
+    #   timeout: 4h
+    #   taskTimeout: 3h
+    #   finallyTimeout: 30m
+    #   params:
+    #     - name: pattern-repo-revision
+    #       value: v2

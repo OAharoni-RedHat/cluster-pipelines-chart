@@ -1,0 +1,33 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: clone-git-repo
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: Clone a git repo revision to a directory
+  params:
+    - name: URL
+      type: string
+      default: ""
+      description: The git repo url to clone
+    - name: REVISION
+      type: string
+      default: ""
+      description: The git revision to clone
+    - name: DEPTH
+      type: string
+      default: "1"
+      description: The depth to clone (defaults to 1 which is a shallow clone)
+    - name: SUBDIR
+      type: string
+      default: "pattern-repo"
+      description: The subdir on the workspace to clone the repo (defaults to pattern-repo)
+  workspaces:
+    - name: output-repo
+  steps:
+    - name: clone-repo
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
+      script: |
+        git clone --depth $(params.DEPTH) --branch $(params.REVISION) $(params.URL) $(workspaces.output-repo.path)/$(params.SUBDIR)

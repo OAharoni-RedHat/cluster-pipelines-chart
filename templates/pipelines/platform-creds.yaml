@@ -1,0 +1,71 @@
+# One secret per platform
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: {{ .Values.externalSecrets.secretStore.name }}
+    kind: {{ .Values.externalSecrets.secretStore.kind }}
+  target:
+    name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      mergePolicy: Replace
+      type: Opaque
+      data:
+        aws_access_key_id: '{{ "{{" }} .AWS_ACCESS_KEY_ID {{ "}}" }}'
+        aws_secret_access_key: '{{ "{{" }} .AWS_SECRET_ACCESS_KEY {{ "}}" }}'
+  dataFrom:
+  - extract:
+      key: {{ .Values.externalSecrets.awsCreds.key }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.qeCIPipelines.defaults.platforms.gcp.credentialName }}
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: {{ .Values.externalSecrets.secretStore.name }}
+    kind: {{ .Values.externalSecrets.secretStore.kind }}
+  target:
+    name: {{ .Values.qeCIPipelines.defaults.platforms.gcp.credentialName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      mergePolicy: Replace
+      type: Opaque
+      data:
+        osServiceAccount.json: '{{ "{{" }} .GCLOUD_JSON {{ "}}" }}'
+  dataFrom:
+  - extract:
+      key: {{ .Values.externalSecrets.gcpCreds.key }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.qeCIPipelines.defaults.platforms.azure.credentialName }}
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: {{ .Values.externalSecrets.secretStore.name }}
+    kind: {{ .Values.externalSecrets.secretStore.kind }}
+  target:
+    name: {{ .Values.qeCIPipelines.defaults.platforms.azure.credentialName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      mergePolicy: Replace
+      type: Opaque
+      data:
+        osServicePrincipal.json: '{{ "{{" }} .service_principal_json {{ "}}" }}'
+  dataFrom:
+  - extract:
+      key: {{ .Values.externalSecrets.azureCreds.key }}

@@ -1,0 +1,161 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: validate-pattern-metadata
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: >
+    Validate pattern-metadata.yaml supports the baked platform and flavor for this pipeline.
+  params:
+    - name: platform
+      type: string
+    - name: flavor
+      type: string
+  workspaces:
+    - name: pattern-repo
+  results:
+    - name: hub-control-plane
+      type: object
+      properties:
+        replicas:
+          type: string
+        type:
+          type: string
+    - name: hub-compute-nodes
+      type: object
+      properties:
+        replicas:
+          type: string
+        type:
+          type: string
+    - name: spoke-control-plane
+      type: object
+      properties:
+        replicas:
+          type: string
+        type:
+          type: string
+    - name: spoke-compute-nodes
+      type: object
+      properties:
+        replicas:
+          type: string
+        type:
+          type: string
+  steps:
+    - name: validate
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        PATTERN_METADATA="$(workspaces.pattern-repo.path)/pattern-metadata.yaml"
+        FLAVOR="$(params.flavor)"
+        CLOUD_PLATFORM="$(params.platform)"
+
+        extract_cluster_config() {
+            local role="$1"
+            export CLUSTER_ROLE="${role}"
+            export CLOUD_PLATFORM
+            yq -o=json -e '
+                .requirements[strenv(CLUSTER_ROLE)] as $cluster |
+                {
+                  "controlPlane": $cluster.controlPlane.platform[strenv(CLOUD_PLATFORM)],
+                  "compute": (
+                    $cluster.compute.platform[strenv(CLOUD_PLATFORM)]
+                    // {
+                      "replicas": 0,
+                      "type": $cluster.controlPlane.platform[strenv(CLOUD_PLATFORM)].type
+                    }
+                  )
+                }
+            ' "${PATTERN_METADATA}" 2>/dev/null
+        }
+
+        cluster_config_valid() {
+            local config="$1"
+            [ -n "${config}" ] \
+                && [ "$(yq -r '.controlPlane.type // ""' <<< "${config}")" != "" ]
+        }
+
+        write_object_result() {
+            local replicas="$1"
+            local instance_type="$2"
+            local output_path="$3"
+            printf '{"replicas":"%s","type":"%s"}' "${replicas}" "${instance_type}" > "${output_path}"
+        }
+
+        write_empty_spoke_results() {
+            write_object_result "0" "" "$(results.spoke-control-plane.path)"
+            write_object_result "0" "" "$(results.spoke-compute-nodes.path)"
+        }
+
+        write_role_results() {
+            local role="$1"
+            local control_plane_result_path="$2"
+            local compute_result_path="$3"
+            local config label
+
+            label="$(tr '[:lower:]' '[:upper:]' <<< "${role}")"
+            if ! config="$(extract_cluster_config "${role}")"; then
+                echo "${label} cluster sizing is empty for this platform: ${CLOUD_PLATFORM}"
+                echo "Please add configuration in the metadata or remove this pipeline from the configuration"
+                return 1
+            fi
+
+            if ! cluster_config_valid "${config}"; then
+                echo "${label} cluster sizing is empty for this platform: ${CLOUD_PLATFORM}"
+                echo "Please add configuration in the metadata or remove this pipeline from the configuration"
+                return 1
+            fi
+
+            write_object_result \
+                "$(yq -r '.controlPlane.replicas' <<< "${config}")" \
+                "$(yq -r '.controlPlane.type' <<< "${config}")" \
+                "${control_plane_result_path}"
+            write_object_result \
+                "$(yq -r '.compute.replicas' <<< "${config}")" \
+                "$(yq -r '.compute.type' <<< "${config}")" \
+                "${compute_result_path}"
+
+            echo "${label} config for ${CLOUD_PLATFORM} found:"
+            echo "  controlPlane: $(yq -o=json '.controlPlane' <<< "${config}")"
+            echo "  compute: $(yq -o=json '.compute' <<< "${config}")"
+        }
+
+        if [ ! -f "${PATTERN_METADATA}" ]; then
+            echo "ERROR: pattern-metadata.yaml not found in repository root"
+            exit 1
+        fi
+
+        if [ "${FLAVOR}" = "hosted" ]; then
+            HYPERSHIFT_SUPPORT=$(yq '.extra_features.hypershift_support // false' "${PATTERN_METADATA}")
+
+            if [ "${HYPERSHIFT_SUPPORT}" = "false" ]; then
+                echo "Hypershift support not enabled, please enable it in the metadata or remove this pipeline from the configuration"
+                exit 1
+            fi
+        fi
+
+        if [ "${FLAVOR}" = "multi" ]; then
+            SPOKE_SUPPORT=$(yq '.extra_features.spoke_support // false' "${PATTERN_METADATA}")
+
+            if [ "${SPOKE_SUPPORT}" = "false" ]; then
+                echo "Spoke support not enabled, please enable it in the metadata or remove this pipeline from the configuration"
+                exit 1
+            fi
+
+            write_role_results spoke \
+                "$(results.spoke-control-plane.path)" \
+                "$(results.spoke-compute-nodes.path)"
+        else
+            write_empty_spoke_results
+        fi
+
+        write_role_results hub \
+            "$(results.hub-control-plane.path)" \
+            "$(results.hub-compute-nodes.path)"
+
+        exit 0

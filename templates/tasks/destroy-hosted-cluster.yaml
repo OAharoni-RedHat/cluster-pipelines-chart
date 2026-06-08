@@ -1,0 +1,41 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: destroy-hosted-cluster
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: Destroy HyperShift hosted cluster after a successful hcp test run
+  params:
+    - name: cluster-name
+      type: string
+      default: ""
+    - name: namespace
+      type: string
+      default: {{ .Values.qeCIPipelines.defaults.namespace }}
+  workspaces:
+    - name: creds
+      description: Holds generated aws sts creds
+  steps:
+    - name: destroy-hosted-cluster
+      image: {{ .Values.hcpImage | default .Values.toolsImage }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        CLUSTER_NAME=$(params.cluster-name)
+        CLUSTER_NAMESPACE=$(params.namespace)
+
+        CREDS_DIR="$(workspaces.creds.path)"
+        STS_CREDS="${CREDS_DIR}/sts-creds.json"
+
+        ROLE_ARN={{ .Values.qeCIPipelines.defaults.hcpARN }}
+
+
+        hcp destroy cluster aws \
+          --name ${CLUSTER_NAME} \
+          --namespace ${CLUSTER_NAMESPACE} \
+          --cluster-grace-period 30m \
+          --sts-creds ${STS_CREDS} \
+          --role-arn ${ROLE_ARN}

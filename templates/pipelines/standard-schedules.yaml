@@ -1,0 +1,124 @@
+{{- if .Values.qeCIPipelines.schedules }}
+{{- $defaults := default dict .Values.qeCIPipelines.scheduleDefaults }}
+{{- $namespace := .Values.qeCIPipelines.defaults.namespace }}
+{{- $saName := "pipeline" }}
+{{- $triggerImage := default .Values.toolsImage $defaults.triggerImage }}
+{{- range .Values.qeCIPipelines.schedules }}
+{{- $pipeline := required "each schedule must set pipeline" .pipeline }}
+{{- $cron := required "each schedule must set cron" .cron }}
+{{- $suspend := default (default false $defaults.suspend) .suspend }}
+{{- $concurrencyPolicy := default (default "Forbid" $defaults.concurrencyPolicy) .concurrencyPolicy }}
+{{- $successfulJobsHistoryLimit := default (default 3 $defaults.successfulJobsHistoryLimit) .successfulJobsHistoryLimit }}
+{{- $failedJobsHistoryLimit := default (default 3 $defaults.failedJobsHistoryLimit) .failedJobsHistoryLimit }}
+{{- $workspaceStorage := default (default "2Gi" $defaults.workspaceStorage) .workspaceStorage }}
+{{- $timeout := default (default "3h" $defaults.timeout) .timeout }}
+{{- $taskTimeout := default (default "2h" $defaults.taskTimeout) .taskTimeout }}
+{{- $finallyTimeout := default (default "30m" $defaults.finallyTimeout) .finallyTimeout }}
+{{- $pipelineSecrets := list -}}
+{{- $bestPatternLen := 0 -}}
+{{- range $patternName, $app := $.Values.qeCIPipelines.patterns }}
+{{- if and $app.secrets (hasPrefix (printf "%s-" $patternName) $pipeline) (gt (len $patternName) $bestPatternLen) }}
+{{- $bestPatternLen = len $patternName }}
+{{- $pipelineSecrets = list }}
+{{- range $entry := $app.secrets }}
+{{- $secretName := include "qeCIPipelines.patternSecretName" $entry }}
+{{- $workspace := include "qeCIPipelines.secretWorkspaceName" $secretName }}
+{{- $pipelineSecrets = append $pipelineSecrets (dict "name" $secretName "workspace" $workspace) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- $cronJobName := printf "schedule-%s" $pipeline | trunc 63 | trimSuffix "-" }}
+{{- $configMapName := printf "%s-pr" $cronJobName | trunc 63 | trimSuffix "-" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $configMapName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "pipelines.labels" $ | nindent 4 }}
+    qeCIPipelines.cluster-provisioning/schedule: "true"
+    tekton.dev/pipeline: {{ $pipeline | quote }}
+data:
+  pipelinerun.yaml: |
+    apiVersion: tekton.dev/v1
+    kind: PipelineRun
+    metadata:
+      generateName: {{ $pipeline }}-
+      namespace: {{ $namespace }}
+      labels:
+        tekton.dev/pipeline: {{ $pipeline | quote }}
+        pipelines.cluster-provisioning/schedule: "true"
+    spec:
+      serviceAccountName: {{ $saName }}
+      timeouts:
+        pipeline: {{ $timeout | quote }}
+        tasks: {{ $taskTimeout | quote }}
+        finally: {{ $finallyTimeout | quote }}
+      pipelineRef:
+        name: {{ $pipeline }}
+      workspaces:
+        - name: shared-data
+          volumeClaimTemplate:
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: {{ $workspaceStorage | quote }}
+      {{- range $secret := $pipelineSecrets }}
+        - name: {{ $secret.workspace }}
+          secret:
+            secretName: {{ $secret.name }}
+      {{- end }}
+      {{- with .params }}
+      params:
+        {{- range . }}
+        - name: {{ .name }}
+          value: {{ .value | quote }}
+        {{- end }}
+      {{- end }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $cronJobName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "pipelines.labels" $ | nindent 4 }}
+    pipelines.cluster-provisioning/schedule: "true"
+    tekton.dev/pipeline: {{ $pipeline | quote }}
+spec:
+  schedule: {{ $cron | quote }}
+  suspend: {{ $suspend }}
+  concurrencyPolicy: {{ $concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ $successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ $failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            pipelines.cluster-provisioning/schedule: "true"
+            tekton.dev/pipeline: {{ $pipeline | quote }}
+        spec:
+          serviceAccountName: {{ $saName }}
+          restartPolicy: Never
+          containers:
+            - name: trigger-pipelinerun
+              image: {{ $triggerImage | quote }}
+              command:
+                - /bin/bash
+                - -ec
+                - oc create -f /config/pipelinerun.yaml -n {{ $namespace }}
+              volumeMounts:
+                - name: pipelinerun
+                  mountPath: /config
+                  readOnly: true
+          volumes:
+            - name: pipelinerun
+              configMap:
+                name: {{ $configMapName }}
+{{- end }}
+{{- end }}

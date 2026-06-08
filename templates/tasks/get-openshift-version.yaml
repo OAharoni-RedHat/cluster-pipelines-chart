@@ -1,0 +1,265 @@
+apiVersion: tekton.dev/v1beta1
+kind: StepAction
+metadata:
+  name: get-openshift-version
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: Get the exact, latest z stream openshift version for a major.minor version
+  params:
+    - name: ocp-version
+      type: string
+      default: ""
+  results:
+    - name: release-image
+      description: The the exact, latest z stream release-image for a major.minor version
+    - name: exact-ocp-version
+      description: The the exact, z stream version for a major.minor version
+  image: {{ .Values.toolsImage }}
+  env:
+    - name: OCP_MINOR
+      value: $(params.ocp-version)
+    - name: RESULTS_RELEASE_IMAGE_PATH
+      value: $(step.results.release-image.path)
+    - name: RESULTS_EXACT_OCP_VERSION_PATH
+      value: $(step.results.exact-ocp-version.path)
+
+
+
+  script: |
+      #!/usr/bin/env bash
+
+      set -Eeuo pipefail
+
+      ###############################################################################
+      # Configuration
+      ###############################################################################
+
+      ARCH="${ARCH:-x86_64}"
+
+      ###############################################################################
+      # Helpers
+      ###############################################################################
+
+      log() {
+          echo "[resolver] $*"
+      }
+
+      warn() {
+          echo "[resolver] WARNING: $*" >&2
+      }
+
+      version_sort() {
+          sort -V | tail -1
+      }
+
+      set_result() {
+          SOURCE="$1"
+          VERSION="$2"
+          RELEASE_IMAGE="$3"
+          CLUSTER_IMAGE_SET="${4:-}"
+      }
+
+      release_image_for_version() {
+          local version="$1"
+
+          if [[ "$version" == *registry.ci* ]]; then
+              echo ${version}
+          else
+              echo "quay.io/openshift-release-dev/ocp-release:${version}-${ARCH}"
+          fi
+      }
+
+      ###############################################################################
+      # Provider: ClusterImageSet
+      ###############################################################################
+
+      resolve_clusterimageset() {
+
+          local json
+
+          json="$(
+              oc get clusterimagesets -o json |
+              jq -r --arg minor "$OCP_MINOR" '
+              [
+                  .items[]
+                  | .spec.releaseImage as $img
+                  | select($img | test(":" + $minor + "\\.[0-9]+"))
+                  | {
+                      name: .metadata.name,
+                      image: $img,
+                      version: (
+                          $img
+                          | capture(":(?<v>[0-9]+\\.[0-9]+\\.[0-9]+)").v
+                      )
+                  }
+              ]
+              | sort_by(.version | split(".") | map(tonumber))
+              | last
+              '
+          )"
+
+          [[ "$json" == "null" || -z "$json" ]] && return 1
+
+          local version image cis
+
+          version=$(jq -r .version <<<"$json")
+          image=$(jq -r .image <<<"$json")
+          cis=$(jq -r .name <<<"$json")
+
+          set_result clusterimageset "$version" "$image" "$cis"
+
+          #
+          # Compare with upstream fast and warn if behind.
+          #
+          local upstream
+
+          upstream="$(
+              curl -fsSL \
+                  "https://api.openshift.com/api/upgrades_info/v1/graph?channel=fast-${OCP_MINOR}" \
+                  |jq -r '
+                      .nodes
+                      | max_by(.version | split(".") | map(tonumber))
+                      | .version? // empty
+                  '
+          )"
+
+          if [[ -n "$upstream" && "$upstream" != "$version" ]]; then
+              warn "ClusterImageSet provides ${version}, latest upstream fast is ${upstream}"
+          fi
+
+          return 0
+      }
+
+      ###############################################################################
+      # Provider: Cincinnati
+      ###############################################################################
+
+      resolve_cincinnati() {
+
+          local channel="$1"
+
+          local version
+
+          version="$(
+              curl -fsSL \
+                  "https://api.openshift.com/api/upgrades_info/v1/graph?channel=${channel}-${OCP_MINOR}" \
+                  |jq -r '
+                      .nodes
+                      | max_by(.version | split(".") | map(tonumber))
+                      | .version? // empty
+                  '
+          )"
+
+          [[ -z "$version" ]] && return 1
+
+          set_result \
+              "$channel" \
+              "$version" \
+              "$(release_image_for_version "$version")"
+
+          return 0
+
+      }
+
+      ###############################################################################
+      # Provider: Nightly
+      ###############################################################################
+
+      resolve_nightly() {
+
+          local stream="${OCP_MINOR}.0-0.nightly"
+
+          local version
+
+          version="$(
+              curl -fsSL https://multi.ocp.releases.ci.openshift.org/graph |
+              jq -r --arg stream "$stream" '
+              .nodes
+              | map(select(.version | startswith($stream)))
+              | max_by(.version)?
+              | .payload // empty
+              '
+          )"
+
+          [[ -z "$version" ]] && return 1
+
+          set_result \
+              https://multi.ocp.releases.ci.openshift.org/graph \
+              ${OCP_MINOR}-nightly \
+              "$(release_image_for_version "$version")"
+
+          return 0
+      }
+
+      ###############################################################################
+      # Resolution
+      ###############################################################################
+
+      SOURCE=""
+      VERSION=""
+      RELEASE_IMAGE=""
+      CLUSTER_IMAGE_SET=""
+
+      log "Resolving OpenShift ${OCP_MINOR}"
+
+      for provider in \
+          clusterimageset \
+          stable \
+          candidate \
+          nightly
+      do
+
+          log "Trying ${provider}..."
+
+          case "$provider" in
+
+              clusterimageset)
+                  resolve_clusterimageset && break
+                  ;;
+
+              stable)
+                  resolve_cincinnati stable && break
+                  ;;
+
+              candidate)
+                  resolve_cincinnati candidate && break
+                  ;;
+
+              nightly)
+                  resolve_nightly && break
+                  ;;
+
+          esac
+
+      done
+
+      ###############################################################################
+      # Final validation
+      ###############################################################################
+
+      if [[ -z "$VERSION" ]]; then
+          echo "ERROR: Unable to resolve an OpenShift ${OCP_MINOR} release."
+          exit 1
+      fi
+
+      ###############################################################################
+      # Summary
+      ###############################################################################
+
+      echo
+      echo "Resolution successful"
+      echo "---------------------"
+      printf "%-18s %s\n" "Source:" "$SOURCE"
+      printf "%-18s %s\n" "Version:" "$VERSION"
+      printf "%-18s %s\n" "Release Image:" "$RELEASE_IMAGE"
+
+      if [[ -n "$CLUSTER_IMAGE_SET" ]]; then
+          printf "%-18s %s\n" "ClusterImageSet:" "$CLUSTER_IMAGE_SET"
+      fi
+
+
+      printf "%s" "$RELEASE_IMAGE" > ${RESULTS_RELEASE_IMAGE_PATH}
+      printf "%s" "$VERSION"       > ${RESULTS_EXACT_OCP_VERSION_PATH}
+

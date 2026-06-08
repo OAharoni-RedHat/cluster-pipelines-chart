@@ -1,0 +1,21 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: pipeline-failure-check
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: Fail the PipelineRun if any task failed
+  params:
+    - name: aggregateTasksStatus
+      type: string
+  steps:
+    - name: check
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
+      script: |
+        #!/usr/bin/env bash
+        if [ "$(params.aggregateTasksStatus)" = "Failed" ]; then
+          echo "Failing PipelineRun"
+          exit 1
+        fi

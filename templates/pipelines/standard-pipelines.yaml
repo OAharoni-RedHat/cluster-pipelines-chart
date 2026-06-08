@@ -1,0 +1,87 @@
+{{- $_ := include "qeCIPipelines.validatePatternSecrets" $ }}
+{{- range $patternName, $app := .Values.qeCIPipelines.patterns }}
+  {{- $flavors := include "qeCIPipelines.supportedFlavors" (dict
+        "root" $
+        "app" $app
+      ) | fromJson }}
+  {{- $ocpVersions := include "tekton.supportedOcpVersions" (dict
+        "root" $
+        "app" $app
+      ) | fromJson }}
+  {{- range $flavorName, $flavorCfg := $flavors }}
+    {{- $platforms := include "qeCIPipelines.supportedPlatformsForFlavor" (dict
+          "root" $
+          "app" $app
+          "flavorName" $flavorName
+          "flavorCfg" $flavorCfg
+        ) | fromJson }}
+    {{- range $platformName, $_ := $platforms }}
+      {{- range $ocpVersion, $_ := $ocpVersions }}
+        {{- $ctx := dict
+              "root" $
+              "app" $app
+              "patternName" $patternName
+              "platformName" $platformName
+              "ocpVersion" $ocpVersion
+              "flavorName" $flavorName
+              "flavorCfg" $flavorCfg
+              "repo" (default "" $app.repo)
+              "namespace" $.Values.qeCIPipelines.defaults.namespace
+            }}
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: {{ printf "%s-%s-%s-%s" $patternName $platformName ($ocpVersion | replace "." "-") $flavorName }}
+  namespace: {{ $.Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    pattern.name: {{ $patternName }}
+    pattern.platform: {{ $platformName }}
+    pattern.ocp-version: {{ $ocpVersion | replace "." "-" }}
+    pattern.flavor: {{ $flavorName }}
+spec:
+  description: >
+    Pattern test pipeline for {{ $patternName }} on {{ $platformName }} (OCP {{ $ocpVersion }}, {{ $flavorName }}).
+    Checkout and validate metadata, provision, install, test, cleanup.
+  params:
+    - name: pattern-repo-url
+      type: string
+      description: Git URL of the pattern to test (override for forks)
+      default: {{ default "" $app.repo | quote }}
+    - name: pattern-repo-revision
+      type: string
+      description: Git revision (branch, tag, or SHA)
+      default: {{ default "main" $app.revision | quote }}
+    - name: force-skip-cleanup
+      type: string
+      description: Skip cluster cleanup, even if everything is green
+      default: false
+    - name: cluster-name-postfix
+      type: string
+      description: >
+        Optional Hive cluster name suffix (4-8 lowercase alphanumeric characters).
+        When empty, the random suffix from the PipelineRun name ({pipeline}-<suffix>) is
+        used so concurrent runs do not share a ClusterDeployment. Set to an existing
+        postfix (e.g. srfbxw from a prior PipelineRun name) to reuse that cluster.
+      default: ""
+  workspaces:
+    - name: shared-data
+    {{- if $app.secrets }}
+    {{- range $entry := $app.secrets }}
+    {{- $wsName := include "qeCIPipelines.secretWorkspaceName" (include "qeCIPipelines.patternSecretName" $entry) }}
+    - name: {{ $wsName }}
+    {{- end }}
+    {{- end }}
+  tasks:
+    {{- include "qeCIPipelines.tasks.setup" $ctx | nindent 4 }}
+    {{- $provisionTpl := printf "qeCIPipelines.provision.%s" $flavorName -}}
+    {{- include $provisionTpl $ctx | nindent 4 }}
+    {{- include "qeCIPipelines.tasks.post-provision" $ctx | nindent 4 }}
+  finally:
+    {{- $cleanupTpl := printf "qeCIPipelines.cleanup.%s" $flavorName -}}
+    {{- include $cleanupTpl $ctx | nindent 4 }}
+    {{- include "qeCIPipelines.finally.common" $ctx | nindent 4 }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}

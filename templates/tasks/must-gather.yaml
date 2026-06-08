@@ -1,0 +1,33 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: must-gather
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: Collect must-gather from a failed cluster
+  params:
+    - name: cluster-name
+      type: string
+      default: ""
+  workspaces:
+    - name: kubeconfig
+    - name: must-gather
+  results:
+    - name: outcome
+  steps:
+    - name: must-gather
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
+      env:
+        - name: KUBECONFIG
+          value: $(workspaces.kubeconfig.path)/$(params.cluster-name)-kubeconfig
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        trap 'echo -n failed > "$(results.outcome.path)"' ERR
+
+        DESTDIR=$(workspaces.must-gather.path)/$(params.cluster-name)
+        oc adm must-gather --image-stream=openshift/must-gather --image={{ .Values.qeCIPipelines.defaults.mustGatherImg }} --dest-dir="${DESTDIR}"
+        echo -n success > "$(results.outcome.path)"

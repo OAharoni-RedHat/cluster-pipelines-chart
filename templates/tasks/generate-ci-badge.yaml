@@ -1,0 +1,181 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: generate-ci-badge
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: generate and uploiad ci-badge
+  params:
+    - name: pattern-repo-url
+      type: string
+      default: ""
+    - name: pattern-repo-revision
+      type: string
+      default: "main"
+    - name: platform
+      type: string
+      default: ""
+    - name: ocp-version
+      type: string
+      default: ""
+    - name: exact-ocp-version
+      description: The the exact, z stream version for a major.minor version
+      type: string
+      default: "N/A"
+    - name: pattern-name
+      type: string
+      default: ""
+    - name: interop-status
+      type: string
+      default: "skipped"
+    - name: aws-bucket
+      type: string
+      default: "validated-patterns-ci-tests-poc"
+    - name: must-gather-status
+      type: string
+      default: "Failed"
+    - name: pipelinerun-ns
+      type: string
+    - name: pipelinerun-name
+      type: string
+    - name: pipelinerun-id
+      type: string
+    - name: pipeline-name
+      type: string
+  volumes:
+  - name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
+    secret:
+      secretName: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
+  workspaces:
+    - name: results
+  steps:
+    - name: generate-badge
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
+      script: |
+        #!/usr/bin/env bash
+
+
+        PIPELINERUN=$(params.pipelinerun-name)
+        PIPELINE_NAMESPACE=$(params.pipelinerun-ns)
+        PIPELINERUN_ID=$(params.pipelinerun-id)
+        PIPELINE_NAME=$(params.pipeline-name)
+
+        CONSOLE_URL="https://console-openshift-console.{{ .Values.global.hubClusterDomain }}"
+        TEKTON_URL="${CONSOLE_URL}/k8s/ns/${PIPELINE_NAMESPACE}/tekton.dev~v1~PipelineRun/${PIPELINERUN}"
+
+        AWS_BUCKET=$(params.aws-bucket)
+
+        if [ "$(params.must-gather-status)" = "Succeeded" ]; then
+          DEBUG_INFO="s3://${AWS_BUCKET}/must-gathers/${PIPELINE_NAME}_${PIPELINERUN_ID}.gz"
+        else
+          DEBUG_INFO="Must gather was not running due to infra failure"
+        fi
+       
+        SCHEMA_VERSION=1
+        TRIGGER_SOURCE="cron"
+
+        INTEROP_STATUS=$(params.interop-status)
+
+        case "${INTEROP_STATUS}" in
+          skipped)
+            COLOR="yellow"
+            MESSAGE="FAILURE"
+            ;;
+          failed)
+            COLOR="red"
+            MESSAGE="FAILURE"
+            ;;
+          success)
+            COLOR="green"
+            MESSAGE="SUCCESS"
+            DEBUG_INFO="N/A"
+            ;;
+          *)
+            COLOR="yellow"
+            MESSAGE="FAILURE"
+            ;;
+        esac
+
+
+        INFRA_PROVIDER="$(params.platform)"
+
+        PATTERN_REPO=$(params.pattern-repo-url)
+        PATTERN_BRANCH=$(params.pattern-repo-revision)
+        PATTERN_SHORT_NAME="$(params.pattern-name)"
+
+        TEST_SOURCE="Red Hat"
+
+        DATE=$(date +%F)
+        EPOCH=$(date +%s%3N)
+
+        OCP_VERSION="$(params.ocp-version)"
+
+
+        OPENSHIFT_VERSION="$(params.exact-ocp-version)"
+        OUTPUT_FILENAME=${PIPELINE_NAME}-stable-badge.json
+        OUTPUT_FILE="$(workspaces.results.path)/${OUTPUT_FILENAME}"
+
+
+
+        cat > "${OUTPUT_FILE}" <<EOF
+        {
+          "schemaVersion": ${SCHEMA_VERSION},
+          "label": "${INFRA_PROVIDER}-${OCP_VERSION}",
+          "message": "${MESSAGE}",
+          "triggerSource": "${TRIGGER_SOURCE}",
+          "triggerVersion": "${OPENSHIFT_VERSION}",
+          "color": "${COLOR}",
+          "pipelineURL": "${TEKTON_URL}",
+          "infraProvider": "${INFRA_PROVIDER}",
+          "patternRepo": "${PATTERN_REPO}",
+          "patternBranch": "${PATTERN_BRANCH}",
+          "openshiftVersion": "${OPENSHIFT_VERSION}",
+          "debugInfo": "${DEBUG_INFO}",
+          "patternName": "${PATTERN_SHORT_NAME}",
+          "testId": "${PIPELINERUN_ID}",
+          "testSource": "${TEST_SOURCE}",
+          "date": "${DATE}",
+          "epoch": ${EPOCH}
+        }
+        EOF
+
+        echo "Created ${OUTPUT_FILE}"
+        cat ${OUTPUT_FILE}
+
+
+    - name: upload-badge
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
+      volumeMounts:
+      - name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
+        mountPath: /tekton/home/.aws
+      when:
+        - cel: "'$(params.pattern-repo-url)'.contains('github.com/validatedpatterns')"
+        - input: "$(params.pattern-repo-revision)"
+          operator: in
+          values: [ "main" ]
+
+      script: |
+        #!/usr/bin/env bash
+
+        PIPELINE_NAME=$(params.pipeline-name)
+
+
+        OUTPUT_FILENAME=${PIPELINE_NAME}-stable-badge.json
+        OUTPUT_FILE="$(workspaces.results.path)/${OUTPUT_FILENAME}"
+
+        AWS_BUCKET=$(params.aws-bucket)
+        
+        export AWS_ACCESS_KEY_ID="$(cat /tekton/home/.aws/aws_access_key_id)"
+        export AWS_SECRET_ACCESS_KEY="$(cat /tekton/home/.aws/aws_secret_access_key)"
+        export AWS_DEFAULT_REGION=eu-north-1
+        
+        if [[ -f /tekton/home/.aws/aws_default_region ]]; then
+            export AWS_DEFAULT_REGION="$(cat /tekton/home/.aws/aws_default_region)"
+        fi
+
+        aws s3 cp ${OUTPUT_FILE}  "s3://${AWS_BUCKET}/ci-badges/"
+
+        # gcloud storage cp ${OUTPUT_FILE} ${config.badgeBucketURI}/${PATTERN_SHORT_NAME}-${INFRA_PROVIDER}-${OCP_VERSION}-stable-badge.json \
+        #     --project ${env.GCLOUD_CI_BADGE_PROJECT_ID}

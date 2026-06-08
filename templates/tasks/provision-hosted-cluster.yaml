@@ -1,0 +1,307 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: provision-hosted-cluster
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: Provision a HyperShift hosted cluster for hcp pattern tests
+  params:
+    - name: cluster-base-name
+      type: string
+      default: ""
+    - name: namespace
+      type: string
+      default: {{ .Values.qeCIPipelines.defaults.namespace }}
+    - name: cluster-role
+      type: string
+      default: hub
+    - name: flavor
+      type: string
+      default: hosted
+    - name: platform
+      type: string
+      default: aws
+    - name: ocp-version
+      type: string
+      default: ""
+    - name: wait-timeout
+      type: string
+      default: {{ .Values.qeCIPipelines.defaults.provisionTaskTimeout }}
+    - name: ssh-public-key
+      type: string
+      default: ""
+    - name: cluster-name-postfix
+      type: string
+      description: >
+        Optional name suffix (4-8 lowercase alphanumeric). When empty, the random
+        suffix from the PipelineRun name ({pipeline-name}-<suffix>) is used, with UID
+        fragment fallback when the run name does not follow that pattern.
+      default: ""
+    - name: pipelinerun-name
+      type: string
+      default: ""
+      description: PipelineRun metadata.name for default postfix derivation
+    - name: pipeline-name
+      type: string
+      default: ""
+      description: Pipeline metadata.name; used with pipelinerun-name for default postfix
+    - name: pipelinerun-uid
+      type: string
+      default: ""
+      description: PipelineRun UID; fallback default postfix when run name suffix cannot be derived
+    - name: compute-nodes-config
+      type: object
+      properties:
+        replicas:
+          type: string
+          default: "0"
+        type:
+          type: string
+          default: ""
+
+  results:
+    - name: cluster-name
+      description: The name of the cluster created
+    - name: release-image
+      description: The the exact, latest z stream release-image for a major.minor version
+      value: $(steps.get-openshift-version.results.release-image)
+    - name: exact-ocp-version
+      description: The the exact, z stream version for a major.minor version
+      value: $(steps.get-openshift-version.results.exact-ocp-version)
+  workspaces:
+    - name: kubeconfig
+    - name: creds
+      description: Holds generated aws sts creds
+  volumes:
+  - name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
+    secret:
+      secretName: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
+  - name: pull-secret
+    secret:
+      secretName: global-pullsecret
+  steps:
+    - name: generate-cluster-name
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        VERSION_STRING="$(params.ocp-version)"
+        VERSION_STRING="${VERSION_STRING//./-}"
+
+        OVERRIDE_POSTFIX="$(params.cluster-name-postfix)"
+        if [ -n "${OVERRIDE_POSTFIX}" ]; then
+          if ! [[ "${OVERRIDE_POSTFIX}" =~ ^[a-z0-9]{4,8}$ ]]; then
+            echo "cluster-name-postfix must be 4-8 lowercase alphanumeric characters when set" >&2
+            exit 1
+          fi
+          POSTFIX="${OVERRIDE_POSTFIX}"
+        else
+          PIPELINE_NAME="$(params.pipeline-name)"
+          RUN_NAME="$(params.pipelinerun-name)"
+          PREFIX="${PIPELINE_NAME}-"
+          if [[ -n "${RUN_NAME}" && -n "${PIPELINE_NAME}" && "${RUN_NAME}" == "${PREFIX}"* ]]; then
+            POSTFIX="${RUN_NAME#${PREFIX}}"
+          else
+            POSTFIX=""
+          fi
+          if [[ -z "${POSTFIX}" || ! "${POSTFIX}" =~ ^[a-z0-9]{4,8}$ ]]; then
+            PIPELINERUN_UID="$(params.pipelinerun-uid)"
+            if [ -z "${PIPELINERUN_UID}" ]; then
+              echo "could not derive cluster name postfix from PipelineRun name; pipelinerun-uid is required for fallback" >&2
+              exit 1
+            fi
+            HEX_UID="${PIPELINERUN_UID//-/}"
+            HEX_UID="${HEX_UID,,}"
+            POSTFIX="${HEX_UID:0:5}"
+            echo "Using UID fragment for cluster name postfix (PipelineRun name did not match ${PREFIX}<suffix>)" >&2
+          fi
+        fi
+        PLATFORM="$(params.platform)"
+
+        CLUSTER_NAME="$(params.cluster-base-name)-${PLATFORM}-${VERSION_STRING}-$(params.cluster-role)-$(params.flavor)-${POSTFIX}"
+        echo -n "${CLUSTER_NAME}" > "$(results.cluster-name.path)"
+
+    - name: check-existing
+      image: {{ .Values.toolsImage }}
+      results:
+        - name: cluster-exists
+          type: string
+          description: Whether the HostedCluster already exists (true/false)
+      env:
+       - name: CLUSTER_NAME_PATH
+         value: $(results.cluster-name.path)
+      script: |
+        #!/usr/bin/env bash
+        echo "Check exising cluster..."
+        CLUSTER_NAME="$(cat "${CLUSTER_NAME_PATH}")"
+        CLUSTER_NAMESPACE=$(params.namespace)
+
+        if oc get hostedcluster "${CLUSTER_NAME}" -n ${CLUSTER_NAMESPACE} &>/dev/null; then
+          echo "HostedCluster ${CLUSTER_NAME} already exists, skipping creation"
+          echo -n "true" > "$(step.results.cluster-exists.path)"
+        else
+          echo "HostedCluster ${CLUSTER_NAME} does not exist, proceeding with creation"
+          echo -n "false" > "$(step.results.cluster-exists.path)"
+        fi
+
+    - name: generate-sts-creds
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
+      when:
+        - input: "$(steps.check-existing.results.cluster-exists)"
+          operator: in
+          values: ["false"]
+      volumeMounts:
+      - name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
+        mountPath: /tekton/home/.aws
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+        CREDS_DIR="$(workspaces.creds.path)"
+
+        export AWS_ACCESS_KEY_ID="$(cat /tekton/home/.aws/aws_access_key_id)"
+        export AWS_SECRET_ACCESS_KEY="$(cat /tekton/home/.aws/aws_secret_access_key)"
+
+        aws sts get-session-token --output json > "${CREDS_DIR}/sts-creds.json"
+
+    - name: get-openshift-version
+      ref:
+        name: get-openshift-version
+      params:
+        - name: ocp-version
+          value: $(params.ocp-version)
+
+    - name: create-cluster
+      image: {{ .Values.hcpImage }}
+      when:
+        - input: "$(steps.check-existing.results.cluster-exists)"
+          operator: in
+          values: ["false"]
+      volumeMounts:
+      - name: pull-secret
+        mountPath: /tekton/home/.pull-secret
+      env:
+        - name: RELEASE_IMAGE
+          value: $(steps.get-openshift-version.results.release-image)
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        CLUSTER_NAME="$(cat "$(results.cluster-name.path)")"
+        CLUSTER_NAMESPACE=$(params.namespace)
+
+        BASE_DOMAIN={{ .Values.qeCIPipelines.defaults.platforms.aws.baseDomain | quote }}
+        CLOUD_REGION={{ .Values.qeCIPipelines.defaults.platforms.aws.region | quote }}
+
+        WORKER_REPLICAS="$(params.compute-nodes-config.replicas)"
+        WORKER_TYPE="$(params.compute-nodes-config.type)"
+
+
+        PULL_SECRET="/tekton/home/.pull-secret/.dockerconfigjson"
+
+        CREDS_DIR="$(workspaces.creds.path)"
+        STS_CREDS="${CREDS_DIR}/sts-creds.json"
+
+        ROLE_ARN={{ .Values.qeCIPipelines.defaults.hcpARN }}
+
+        CLUSTER_CIDR={{ (index .Values.qeCIPipelines.defaults.networking.clusterNetwork 0).cidr }}
+        MACHINE_CIDR={{ (index .Values.qeCIPipelines.defaults.networking.machineNetwork 0).cidr }}
+        SERVICE_CIDR={{ index .Values.qeCIPipelines.defaults.networking.serviceNetwork 0 }}
+
+
+        echo "============================================"
+        echo "Creating HyperShift cluster: ${CLUSTER_NAME}"
+        echo "Region: ${CLOUD_REGION}"
+        echo "Replicas: ${WORKER_REPLICAS}"
+        echo "Instance Type: ${WORKER_TYPE}"
+        echo "Release Image: ${RELEASE_IMAGE}"
+        echo "============================================"
+
+        hcp create cluster aws \
+          --name ${CLUSTER_NAME} \
+          --namespace ${CLUSTER_NAMESPACE} \
+          --node-pool-replicas ${WORKER_REPLICAS} \
+          --instance-type ${WORKER_TYPE} \
+          --infra-id ${CLUSTER_NAME} \
+          --base-domain ${BASE_DOMAIN} \
+          --pull-secret ${PULL_SECRET} \
+          --region ${CLOUD_REGION} \
+          --release-image ${RELEASE_IMAGE} \
+          --sts-creds ${STS_CREDS} \
+          --role-arn ${ROLE_ARN} \
+          --cluster-cidr ${CLUSTER_CIDR} \
+          --machine-cidr ${MACHINE_CIDR} \
+          --service-cidr ${SERVICE_CIDR}
+
+    - name: wait-clusterdeployment-ready
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+
+        CLUSTER_NAME=$(cat $(results.cluster-name.path))
+        CLUSTER_NAMESPACE=$(params.namespace)
+
+        TIMEOUT=$(params.wait-timeout)
+
+        echo "Waiting up to ${TIMEOUT} for HostedCluster ${CLUSTER_NAME} to be provisioned..."
+
+
+        oc wait hostedcluster/"${CLUSTER_NAME}" \
+          -n "${CLUSTER_NAMESPACE}" \
+          --for=condition=Available=True \
+          --timeout="${TIMEOUT}"
+
+        echo "Cluster provisioned successfully"
+
+    - name: export-kubeconfig
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        # Extract admin kubeconfig
+        CLUSTER_NAME=$(cat $(results.cluster-name.path))
+        CLUSTER_NAMESPACE=$(params.namespace)
+
+        KUBECONFIG_SECRET=$(oc get hostedcluster "${CLUSTER_NAME}" \
+          -n "${CLUSTER_NAMESPACE}" \
+          -o jsonpath='{.status.kubeconfig.name}' 2>/dev/null || echo "")
+
+        # if [ -z "$KUBECONFIG_SECRET" ]; then
+        #   KUBECONFIG_SECRET="${CLUSTER_NAME}-0-admin-kubeconfig"
+        # fi
+
+        echo "Extracting kubeconfig from secret ${KUBECONFIG_SECRET}"
+        oc get secret "${KUBECONFIG_SECRET}" \
+          -n "${CLUSTER_NAMESPACE}" \
+          -o jsonpath='{.data.kubeconfig}' | base64 -d > $(workspaces.kubeconfig.path)/${CLUSTER_NAME}-kubeconfig
+
+        # Extract admin password if available
+        PASSWORD_SECRET=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "${CLUSTER_NAMESPACE}" \
+          -o jsonpath='{.status.kubeadminPassword.name}' 2>/dev/null || echo "")
+
+        if [ -n "$PASSWORD_SECRET" ]; then
+          oc get secret "${PASSWORD_SECRET}" \
+          -n "${CLUSTER_NAMESPACE}" \
+          -o jsonpath='{.data.password}' | base64 -d > $(workspaces.kubeconfig.path)/${CLUSTER_NAME}-admin-password 2>/dev/null || true
+        fi
+
+        # Print cluster info
+        API_URL=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "${CLUSTER_NAMESPACE}" \
+          -o jsonpath='{.status.apiURL}' 2>/dev/null || echo "pending")
+        CONSOLE_URL=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "${CLUSTER_NAMESPACE}" \
+          -o jsonpath='{.status.webConsoleURL}' 2>/dev/null || echo "pending")
+
+        echo "============================================"
+        echo "Cluster: ${CLUSTER_NAME}"
+        echo "API URL: ${API_URL}"
+        echo "Console: ${CONSOLE_URL}"
+        echo "Kubeconfig: $(workspaces.kubeconfig.path)/${CLUSTER_NAME}-kubeconfig"
+        echo "============================================"

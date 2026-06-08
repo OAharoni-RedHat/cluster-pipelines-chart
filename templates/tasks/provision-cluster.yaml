@@ -1,0 +1,440 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: provision-cluster
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: >
+    Provision a cluster via Hive deploy.
+  params:
+    - name: cluster-base-name
+      type: string
+      default: ""
+    - name: namespace
+      type: string
+      default: {{ .Values.qeCIPipelines.defaults.namespace }}
+    - name: cluster-role
+      type: string
+      default: hub
+    - name: flavor
+      type: string
+      default: single
+    - name: platform
+      type: string
+      default: ""
+    - name: ocp-version
+      type: string
+      default: ""
+    - name: wait-timeout
+      type: string
+      default: {{ .Values.qeCIPipelines.defaults.provisionTaskTimeout }}
+    - name: ssh-public-key
+      type: string
+      default: ""
+    - name: cluster-name-postfix
+      type: string
+      description: >
+        Optional name suffix (4-8 lowercase alphanumeric). When empty, the random
+        suffix from the PipelineRun name ({pipeline-name}-<suffix>) is used, with UID
+        fragment fallback when the run name does not follow that pattern.
+      default: ""
+    - name: pipelinerun-name
+      type: string
+      default: ""
+      description: PipelineRun metadata.name for default postfix derivation
+    - name: pipeline-name
+      type: string
+      default: ""
+      description: Pipeline metadata.name; used with pipelinerun-name for default postfix
+    - name: pipelinerun-uid
+      type: string
+      default: ""
+      description: PipelineRun UID; fallback default postfix when run name suffix cannot be derived
+    - name: control-plane-config
+      type: object
+      properties:
+        replicas:
+          type: string
+          default: "0"
+        type:
+          type: string
+          default: ""
+    - name: compute-nodes-config
+      type: object
+      properties:
+        replicas:
+          type: string
+          default: "0"
+        type:
+          type: string
+          default: ""
+
+  results:
+    - name: cluster-name
+      description: The name of the cluster created
+    - name: release-image
+      description: The the exact, latest z stream release-image for a major.minor version
+      value: $(steps.get-openshift-version.results.release-image)
+    - name: exact-ocp-version
+      description: The the exact, z stream version for a major.minor version
+      value: $(steps.get-openshift-version.results.exact-ocp-version)
+  workspaces:
+    - name: kubeconfig
+    - name: install-config
+      description: Holds generated install-config.yaml and clusterdeployment.yaml
+  steps:
+    - name: get-openshift-version
+      ref:
+        name: get-openshift-version
+      params:
+        - name: ocp-version
+          value: $(params.ocp-version)
+
+    - name: generate-install-config
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        VERSION_STRING="$(params.ocp-version)"
+        VERSION_STRING="${VERSION_STRING//./-}"
+
+        OVERRIDE_POSTFIX="$(params.cluster-name-postfix)"
+        if [ -n "${OVERRIDE_POSTFIX}" ]; then
+          if ! [[ "${OVERRIDE_POSTFIX}" =~ ^[a-z0-9]{4,8}$ ]]; then
+            echo "cluster-name-postfix must be 4-8 lowercase alphanumeric characters when set" >&2
+            exit 1
+          fi
+          POSTFIX="${OVERRIDE_POSTFIX}"
+        else
+          PIPELINE_NAME="$(params.pipeline-name)"
+          RUN_NAME="$(params.pipelinerun-name)"
+          PREFIX="${PIPELINE_NAME}-"
+          if [[ -n "${RUN_NAME}" && -n "${PIPELINE_NAME}" && "${RUN_NAME}" == "${PREFIX}"* ]]; then
+            POSTFIX="${RUN_NAME#${PREFIX}}"
+          else
+            POSTFIX=""
+          fi
+          if [[ -z "${POSTFIX}" || ! "${POSTFIX}" =~ ^[a-z0-9]{4,8}$ ]]; then
+            PIPELINERUN_UID="$(params.pipelinerun-uid)"
+            if [ -z "${PIPELINERUN_UID}" ]; then
+              echo "could not derive cluster name postfix from PipelineRun name; pipelinerun-uid is required for fallback" >&2
+              exit 1
+            fi
+            HEX_UID="${PIPELINERUN_UID//-/}"
+            HEX_UID="${HEX_UID,,}"
+            POSTFIX="${HEX_UID:0:5}"
+            echo "Using UID fragment for cluster name postfix (PipelineRun name did not match ${PREFIX}<suffix>)" >&2
+          fi
+        fi
+
+        CLUSTER_NAME="$(params.cluster-base-name)-$(params.platform)-${VERSION_STRING}-$(params.cluster-role)-$(params.flavor)-${POSTFIX}"
+        echo -n "${CLUSTER_NAME}" > "$(results.cluster-name.path)"
+        PLATFORM="$(params.platform)"
+
+        CP_REPLICAS="$(params.control-plane-config.replicas)"
+        CP_TYPE="$(params.control-plane-config.type)"
+
+        WORKER_REPLICAS="$(params.compute-nodes-config.replicas)"
+        WORKER_TYPE="$(params.compute-nodes-config.type)"
+        SSH_KEY="$(params.ssh-public-key)"
+        INSTALL_CFG="$(workspaces.install-config.path)/install-config.yaml"
+
+
+        case "${PLATFORM}" in
+        {{- range $name, $cfg := .Values.qeCIPipelines.defaults.platforms }}
+          {{ $name }})
+            BASE_DOMAIN={{ $cfg.baseDomain | quote }}
+            CLOUD_REGION={{ $cfg.region | quote }}
+            {{- if eq $name "gcp" }}
+            GCP_PROJECT={{ default "" $cfg.projectId | quote }}
+            {{- end }}
+            {{- if eq $name "azure" }}
+            AZ_RG={{ default "" $cfg.baseDomainResourceGroup | quote }}
+            {{- end }}
+            ;;
+        {{- end }}
+          *)
+            echo "unsupported platform: ${PLATFORM}" >&2
+            exit 1
+            ;;
+        esac
+
+        mkdir -p "$(workspaces.install-config.path)"
+
+        compute_iam=''
+        controlplane_iam=''
+        azure_identity=''
+
+        if [ "${PLATFORM}" = "aws" ]; then
+            compute_iam='iamRole: {{ .Values.qeCIPipelines.defaults.platforms.aws.computeNodeIAMRole }}'
+            controlplane_iam='iamRole: {{ .Values.qeCIPipelines.defaults.platforms.aws.controlPlaneIAMRole }}'
+        fi
+
+        if [ "${PLATFORM}" = "azure" ]; then
+            azure_identity='identity: { type: None}'
+        fi
+
+        cat > "${INSTALL_CFG}" <<EOF
+        apiVersion: v1
+        baseDomain: ${BASE_DOMAIN}
+        compute:
+        - architecture: amd64
+          hyperthreading: Enabled
+          name: worker
+          replicas: ${WORKER_REPLICAS}
+          platform:
+            ${PLATFORM}:
+              ${compute_iam}
+              ${azure_identity}
+              type: ${WORKER_TYPE}
+        controlPlane:
+          architecture: amd64
+          hyperthreading: Enabled
+          name: master
+          replicas: ${CP_REPLICAS}
+          platform:
+            ${PLATFORM}:
+              ${controlplane_iam}
+              ${azure_identity}
+              type: ${CP_TYPE}
+        metadata:
+          name: ${CLUSTER_NAME}
+        networking:
+          clusterNetwork:
+          - cidr: {{ (index .Values.qeCIPipelines.defaults.networking.clusterNetwork 0).cidr }}
+            hostPrefix: {{ (index .Values.qeCIPipelines.defaults.networking.clusterNetwork 0).hostPrefix }}
+          machineNetwork:
+          - cidr: {{ (index .Values.qeCIPipelines.defaults.networking.machineNetwork 0).cidr }}
+          networkType: {{ .Values.qeCIPipelines.defaults.networking.networkType }}
+          serviceNetwork:
+          - {{ index .Values.qeCIPipelines.defaults.networking.serviceNetwork 0 }}
+        pullSecret: ""
+        platform:
+        EOF
+
+        case "${PLATFORM}" in
+          aws)
+            cat >> "${INSTALL_CFG}" <<EOF
+          aws:
+            region: ${CLOUD_REGION}
+            userTags: { 'owner': "QE-CI" }
+        EOF
+            ;;
+          gcp)
+            cat >> "${INSTALL_CFG}" <<EOF
+          gcp:
+            projectID: ${GCP_PROJECT}
+            region: ${CLOUD_REGION}
+        EOF
+            ;;
+          azure)
+            cat >> "${INSTALL_CFG}" <<EOF
+          azure:
+            baseDomainResourceGroupName: ${AZ_RG}
+            region: ${CLOUD_REGION}
+        EOF
+            ;;
+        esac
+
+        if [ -n "${SSH_KEY}" ]; then
+          printf '\nsshKey: |-\n' >> "${INSTALL_CFG}"
+          printf '%s\n' "${SSH_KEY}" | sed 's/^/  /' >> "${INSTALL_CFG}"
+        fi
+
+        echo "Generated install-config for ${CLUSTER_NAME}:"
+        cat "${INSTALL_CFG}"
+
+    - name: apply-install-config
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        CLUSTER_NAME="$(cat "$(results.cluster-name.path)")"
+
+        INSTALL_CFG="$(workspaces.install-config.path)/install-config.yaml"
+
+        oc create secret generic "${CLUSTER_NAME}-install-config" \
+          -n "$(params.namespace)" \
+          --from-file=install-config.yaml="${INSTALL_CFG}" \
+          --dry-run=client -o yaml | oc apply -f -
+
+    - name: generate-clusterdeployment
+      image: {{ .Values.toolsImage }}
+      env:
+        - name: RELEASE_IMAGE
+          value: $(steps.get-openshift-version.results.release-image)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        CLUSTER_NAME="$(cat "$(results.cluster-name.path)")"
+        NAMESPACE="$(params.namespace)"
+        PLATFORM="$(params.platform)"
+
+        OUT="$(workspaces.install-config.path)/clusterdeployment.yaml"
+
+        case "${PLATFORM}" in
+        {{- range $name, $cfg := .Values.qeCIPipelines.defaults.platforms }}
+          {{ $name }})
+            BASE_DOMAIN={{ $cfg.baseDomain | quote }}
+            CLOUD_REGION={{ $cfg.region | quote }}
+            {{- if eq $name "azure" }}
+            AZ_RG={{ default "" $cfg.baseDomainResourceGroup | quote }}
+            {{- end }}
+            ;;
+        {{- end }}
+          *)
+            echo "unsupported platform: ${PLATFORM}" >&2
+            exit 1
+            ;;
+        esac
+
+        case "${PLATFORM}" in
+          aws) CLOUD_LABEL="AWS" ;;
+          gcp) CLOUD_LABEL="GCP" ;;
+          azure) CLOUD_LABEL="Azure" ;;
+        esac
+
+        cat > "${OUT}" <<EOF
+        apiVersion: hive.openshift.io/v1
+        kind: ClusterDeployment
+        metadata:
+          name: ${CLUSTER_NAME}
+          namespace: ${NAMESPACE}
+          labels:
+            cloud: ${CLOUD_LABEL}
+            region: ${CLOUD_REGION}
+            vendor: OpenShift
+            cluster.open-cluster-management.io/clusterset: default
+          annotations:
+            hive.openshift.io/delete-after: "8h"
+        spec:
+          clusterName: ${CLUSTER_NAME}
+          baseDomain: ${BASE_DOMAIN}
+          installAttemptsLimit: 1
+          provisioning:
+            installConfigSecretRef:
+              name: ${CLUSTER_NAME}-install-config
+            releaseImage: ${RELEASE_IMAGE}
+          pullSecretRef:
+            name: global-pullsecret
+          platform:
+        EOF
+
+        case "${PLATFORM}" in
+          aws)
+            cat >> "${OUT}" <<EOF
+            aws:
+              credentialsSecretRef:
+                name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
+              region: ${CLOUD_REGION}
+        EOF
+            ;;
+          gcp)
+            cat >> "${OUT}" <<EOF
+            gcp:
+              credentialsSecretRef:
+                name: {{ .Values.qeCIPipelines.defaults.platforms.gcp.credentialName }}
+              region: ${CLOUD_REGION}
+        EOF
+            ;;
+          azure)
+            cat >> "${OUT}" <<EOF
+            azure:
+              credentialsSecretRef:
+                name: {{ .Values.qeCIPipelines.defaults.platforms.azure.credentialName }}
+              region: ${CLOUD_REGION}
+              baseDomainResourceGroupName: ${AZ_RG}
+        EOF
+            ;;
+        esac
+
+        echo "Generated ClusterDeployment ${CLUSTER_NAME}:"
+        cat "${OUT}"
+
+    - name: apply-clusterdeployment
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        OUT="$(workspaces.install-config.path)/clusterdeployment.yaml"
+
+        if [ ! -f "${OUT}" ]; then
+          echo "missing ClusterDeployment manifest: ${OUT}" >&2
+          exit 1
+        fi
+        cat "${OUT}"
+
+        oc apply -f "${OUT}"
+
+    - name: wait-clusterdeployment-ready
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+
+        CLUSTER_NAME=$(cat $(results.cluster-name.path))
+        TIMEOUT=$(params.wait-timeout)
+
+        echo "Waiting up to ${TIMEOUT} for ClusterDeployment ${CLUSTER_NAME} to be provisioned..."
+
+        oc wait clusterdeployment/"${CLUSTER_NAME}" \
+          -n "$(params.namespace)" \
+          --for=condition=Ready=True \
+          --timeout="${TIMEOUT}"
+
+        echo "Cluster provisioned successfully"
+
+    - name: export-kubeconfig
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        # Extract admin kubeconfig
+        CLUSTER_NAME=$(cat $(results.cluster-name.path))
+
+        KUBECONFIG_SECRET=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "$(params.namespace)" \
+          -o jsonpath='{.spec.clusterMetadata.adminKubeconfigSecretRef.name}' 2>/dev/null || echo "")
+
+        if [ -z "$KUBECONFIG_SECRET" ]; then
+          KUBECONFIG_SECRET="${CLUSTER_NAME}-0-admin-kubeconfig"
+        fi
+
+        echo "Extracting kubeconfig from secret ${KUBECONFIG_SECRET}"
+        oc get secret "${KUBECONFIG_SECRET}" \
+          -n "$(params.namespace)" \
+          -o jsonpath='{.data.kubeconfig}' | base64 -d > $(workspaces.kubeconfig.path)/${CLUSTER_NAME}-kubeconfig
+
+        # Extract admin password if available
+        PASSWORD_SECRET=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "$(params.namespace)" \
+          -o jsonpath='{.spec.clusterMetadata.adminPasswordSecretRef.name}' 2>/dev/null || echo "")
+
+        if [ -n "$PASSWORD_SECRET" ]; then
+          oc get secret "${PASSWORD_SECRET}" \
+          -n "$(params.namespace)" \
+          -o jsonpath='{.data.password}' | base64 -d > $(workspaces.kubeconfig.path)/${CLUSTER_NAME}-admin-password 2>/dev/null || true
+        fi
+
+        # Print cluster info
+        API_URL=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "$(params.namespace)" \
+          -o jsonpath='{.status.apiURL}' 2>/dev/null || echo "pending")
+        CONSOLE_URL=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "$(params.namespace)" \
+          -o jsonpath='{.status.webConsoleURL}' 2>/dev/null || echo "pending")
+
+        echo "============================================"
+        echo "Cluster: ${CLUSTER_NAME}"
+        echo "API URL: ${API_URL}"
+        echo "Console: ${CONSOLE_URL}"
+        echo "Kubeconfig: $(workspaces.kubeconfig.path)/${CLUSTER_NAME}-kubeconfig"
+        echo "============================================"

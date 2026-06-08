@@ -1,0 +1,71 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: import-spoke-cluster
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: Import the spoke cluster into ACM on the hub after pattern install
+  params:
+    - name: install-status
+      type: string
+      default: "success"
+    - name: hub-cluster-name
+      type: string
+      default: ""
+    - name: spoke-cluster-name
+      type: string
+      default: "success"
+  workspaces:
+    - name: pattern-repo
+    - name: kubeconfig
+  results:
+    - name: import-status
+  steps:
+    - name: import-spoke
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
+      env:
+        - name: VP_HUBCONFIG
+          value: $(workspaces.kubeconfig.path)/$(params.hub-cluster-name)-kubeconfig
+        - name: VP_SPOKECONFIG
+          value: $(workspaces.kubeconfig.path)/$(params.spoke-cluster-name)-kubeconfig
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        # This is some workaround for Tekton injecting some KUBERNETES_* env vars
+        unset KUBERNETES_SERVICE_HOST
+        trap 'echo -n "failed" > $(results.import-status.path)' ERR
+
+
+        INSTALL_STATUS="$(params.install-status)"
+        if [ "$INSTALL_STATUS" != "success" ]; then
+          echo "Skipping spoke import due to failed install"
+          echo -n "skipped" > $(results.import-status.path)
+          exit 0
+        fi
+
+        cd $(workspaces.pattern-repo.path)
+
+        ./pattern.sh make import-default-spoke
+
+        # If we reach here, everything succeeded
+        echo -n success > "$(results.import-status.path)"
+
+    - name: wait-spoke-apps
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
+      env:
+        - name: SPOKECONFIG
+          value: $(workspaces.kubeconfig.path)/$(params.spoke-cluster-name)-kubeconfig
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        # This is some workaround for Tekton injecting some KUBERNETES_* env vars
+        unset KUBERNETES_SERVICE_HOST
+
+        cd $(workspaces.pattern-repo.path)
+
+        KUBECONFIG=${SPOKECONFIG} EXTRA_PLAYBOOK_OPTS="-e with_retries=true" ./pattern.sh make argo-healthcheck
+
+        # We do not need to fail here, this is just to wait, interop tests will fail if needed if the spoke apps are not healthy
+        exit 0

@@ -1,0 +1,67 @@
+{{- include "qeCIPipelines.validatePatternSecrets" . }}
+{{- $maxSecrets := int (include "qeCIPipelines.maxPatternSecrets" .) }}
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: install-pattern
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: Install a validated pattern on the target cluster
+  params:
+    - name: cluster-name
+      type: string
+      default: ""
+    - name: target-clustergroup
+      type: string
+      default: hub
+  workspaces:
+    - name: pattern-repo
+    - name: kubeconfig
+{{- range $i := until $maxSecrets }}
+    - name: values-secret-{{ $i }}
+      optional: true
+{{- end }}
+  results:
+    - name: outcome
+  steps:
+    - name: install-pattern
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
+      env:
+        - name: KUBECONFIG
+          value: $(workspaces.kubeconfig.path)/$(params.cluster-name)-kubeconfig
+        - name: TARGET_CLUSTERGROUP
+          value: $(params.target-clustergroup)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        # This is some workaround for Tekton injecting some KUBERNETES_* env vars
+        unset KUBERNETES_SERVICE_HOST
+        trap 'echo -n failed > $(results.outcome.path)' ERR
+
+        # Copy secrets to home folder (they need to be referenced there in values-secrets.yaml)
+        HOME_DIR="${HOME:-/tekton/home}"
+        mkdir -p "${HOME_DIR}"
+        WORKSPACES_ROOT="$(dirname "$(workspaces.pattern-repo.path)")"
+        for dir in "${WORKSPACES_ROOT}"/*/; do
+          [ -d "$dir" ] || continue
+          name="$(basename "$dir")"
+          case "$name" in
+            pattern-repo|kubeconfig) continue ;;
+          esac
+          for f in "${dir}"*; do
+            [ -f "$f" ] || continue
+            dest="${HOME_DIR}/$(basename "$f")"
+            echo "Copying ${f} -> ${dest}"
+            cp "$f" "${dest}"
+            chmod 600 "${dest}"
+          done
+        done
+
+        cd $(workspaces.pattern-repo.path)
+
+        ./pattern.sh make install
+
+        # If we reach here, everything succeeded
+        echo -n success > $(results.outcome.path)
