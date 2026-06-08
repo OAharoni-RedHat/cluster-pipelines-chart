@@ -1,0 +1,31 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: provision-hosted-cluster
+  namespace: {{ .Values.pipelineNamespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: Provision a HyperShift hosted cluster for hcp pattern tests
+  params:
+    - name: application
+      type: string
+    - name: platform
+      type: string
+    - name: ocpVersion
+      type: string
+  workspaces:
+    - name: kubeconfig
+  steps:
+    - name: hypershift-provision
+      image: {{ .Values.hcpImage | default .Values.toolsImage }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        # TODO: wire deploy-hypershift task chain (create-namespace, externalsecrets, hcp create cluster, wait-ready)
+        echo "TODO: provision HyperShift hosted cluster"
+        echo "  application=$(params.application) platform=$(params.platform) version=$(params.ocpVersion)"
+        mkdir -p "$(workspaces.kubeconfig.path)"
+        echo "apiVersion: v1" > "$(workspaces.kubeconfig.path)/kubeconfig"
+        echo "kind: Config" >> "$(workspaces.kubeconfig.path)/kubeconfig"
+        echo "clusters: []" >> "$(workspaces.kubeconfig.path)/kubeconfig"

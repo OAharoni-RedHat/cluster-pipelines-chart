@@ -1,0 +1,83 @@
+{{- range $appName, $app := .Values.pipelines.patterns }}
+  {{- $platforms := include "tekton.supportedPlatforms" (dict
+        "root" $
+        "app" $app
+      ) | fromJson }}
+  {{- $flavors := include "pipelines.supportedFlavors" (dict
+        "root" $
+        "app" $app
+      ) | fromJson }}
+  {{- range $platformName, $_ := $platforms }}
+    {{- $poolProfile := include "tekton.poolProfile" (dict
+          "root" $
+          "app" $app
+          "platformName" $platformName
+        ) }}
+    {{- $ocpVersions := include "tekton.supportedOcpVersions" (dict
+          "root" $
+          "app" $app
+          "platformName" $platformName
+          "poolProfile" $poolProfile
+        ) | fromJson }}
+    {{- range $ocpVersion, $_ := $ocpVersions }}
+      {{- range $flavorName, $_ := $flavors }}
+        {{- $ctx := dict
+              "root" $
+              "app" $app
+              "appName" $appName
+              "platformName" $platformName
+              "ocpVersion" $ocpVersion
+              "flavorName" $flavorName
+              "poolProfile" $poolProfile
+              "clusterPool" (include "tekton.clusterPoolName" (dict "platformName" $platformName "poolProfile" $poolProfile "version" $ocpVersion))
+              "clusterClaimName" (printf "%s-%s-claim" $appName $platformName)
+              "clusterClaimNamespace" $.Values.pipelineNamespace
+              "waitTimeoutMinutes" "90"
+              "repo" (default "" $app.repo)
+            }}
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: {{ printf "%s-%s-%s-%s" $appName $platformName ($ocpVersion | replace "." "-") $flavorName }}
+  namespace: {{ $.Values.pipelineNamespace }}
+  labels:
+    pattern.application: {{ $appName }}
+    pattern.platform: {{ $platformName }}
+    pattern.ocp-version: {{ $ocpVersion | replace "." "-" }}
+    pattern.flavor: {{ $flavorName }}
+    pattern.cluster-pool: {{ include "tekton.clusterPoolName" (dict "platformName" $platformName "poolProfile" $poolProfile "version" $ocpVersion) }}
+spec:
+  description: >
+    Pattern test pipeline for {{ $appName }} on {{ $platformName }} (OCP {{ $ocpVersion }}, {{ $flavorName }}).
+    Checkout and validate metadata, provision, install, test, cleanup.
+  params:
+    - name: pattern-repo-url
+      type: string
+      description: Git URL of the pattern to test (override for forks)
+      default: {{ default "" $app.repo | quote }}
+    - name: pattern-repo-revision
+      type: string
+      description: Git revision (branch, tag, or SHA)
+      default: "main"
+    {{- if or (eq $flavorName "hub") (eq $flavorName "hub-spoke") }}
+    - name: useClusterPool
+      type: string
+      description: "When true, provision via ClusterPool claim; when false, deploy Hive clusters directly"
+      default: {{ ternary "true" "false" (not (empty $.Values.pipelines.clusterpools)) | quote }}
+    {{- end }}
+  workspaces:
+    - name: shared-data
+  tasks:
+    {{- include "pipelines.tasks.setup" $ctx | nindent 4 }}
+    {{- $provisionTpl := printf "pipelines.provision.%s" $flavorName -}}
+    {{- include $provisionTpl $ctx | nindent 4 }}
+    {{- include "pipelines.tasks.post-provision" $ctx | nindent 4 }}
+  finally:
+    {{- $cleanupTpl := printf "pipelines.cleanup.%s" $flavorName -}}
+    {{- include $cleanupTpl $ctx | nindent 4 }}
+    {{- include "pipelines.finally.common" $ctx | nindent 4 }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}

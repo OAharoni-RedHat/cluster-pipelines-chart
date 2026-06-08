@@ -1,0 +1,27 @@
+# One secret per platform
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: aws-creds
+  namespace: {{ .Values.pipelineNamespace }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: {{ .Values.externalSecrets.secretStore.name }}
+    kind: {{ .Values.externalSecrets.secretStore.kind }}
+  target:
+    name: aws-creds
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      mergePolicy: Replace
+      type: Opaque
+      data:
+        aws_secret_access_key: "{{ .AWS_SECRET_ACCESS_KEY }}"
+        aws_access_key_id: "{{ .AWS_ACCESS_KEY_ID }}"
+  dataFrom:
+  - extract:
+      key: secret/data/hub/aws
+---
+#TODO create for gcp, azure

@@ -1,0 +1,33 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: resolve-pattern-sizing
+  namespace: {{ .Values.pipelineNamespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: >
+    Extract cluster sizing from pattern-metadata.yaml for the target platform and flavor.
+  params:
+    - name: application
+      type: string
+    - name: platform
+      type: string
+    - name: flavor
+      type: string
+    - name: ocpVersion
+      type: string
+  workspaces:
+    - name: pattern-repo
+  results:
+    - name: outcome
+  steps:
+    - name: resolve-sizing
+      image: quay.io/validatedpatterns/utility-container
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        # TODO: read requirements from pattern-metadata.yaml (hub/spoke roles by flavor)
+        echo "TODO: resolve sizing for $(params.application)"
+        echo "  platform=$(params.platform) flavor=$(params.flavor) version=$(params.ocpVersion)"
+        echo -n success > "$(results.outcome.path)"

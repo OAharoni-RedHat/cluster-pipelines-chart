@@ -1,0 +1,29 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: validate-pattern-metadata
+  namespace: {{ .Values.pipelineNamespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: >
+    Validate pattern-metadata.yaml supports the baked platform and flavor for this pipeline.
+  params:
+    - name: application
+      type: string
+    - name: platform
+      type: string
+    - name: flavor
+      type: string
+  workspaces:
+    - name: pattern-repo
+  steps:
+    - name: validate
+      image: quay.io/validatedpatterns/utility-container
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        # TODO: parse pattern-metadata.yaml from workspace and validate platform/flavor support
+        echo "TODO: validate pattern-metadata for $(params.application)"
+        echo "  platform=$(params.platform) flavor=$(params.flavor)"
+        echo "  repo path: $(workspaces.pattern-repo.path)"

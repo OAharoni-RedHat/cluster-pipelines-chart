@@ -1,0 +1,45 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: create-hive-cluster
+  namespace: {{ .Values.pipelineNamespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: >
+    Provision a Hive/OpenShift cluster via ClusterDeployment (non-pool path).
+  params:
+    - name: cluster-name
+      type: string
+    - name: application
+      type: string
+    - name: platform
+      type: string
+    - name: ocp-version
+      type: string
+    - name: namespace
+      type: string
+    - name: cluster-role
+      type: string
+      description: "hub or spoke"
+      default: "hub"
+    - name: wait-timeout-minutes
+      type: string
+      default: "90"
+  workspaces:
+    - name: kubeconfig
+  steps:
+    - name: create-hive-cluster
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        # TODO: wire deploy-hive tasks (namespace, externalsecrets, install-config, clusterdeployment, wait)
+        echo "TODO: create Hive cluster $(params.cluster-name)"
+        echo "  application=$(params.application) platform=$(params.platform)"
+        echo "  ocp-version=$(params.ocp-version) role=$(params.cluster-role)"
+        echo "  namespace=$(params.namespace) timeout=$(params.wait-timeout-minutes)m"
+        mkdir -p "$(workspaces.kubeconfig.path)"
+        echo "apiVersion: v1" > "$(workspaces.kubeconfig.path)/kubeconfig"
+        echo "kind: Config" >> "$(workspaces.kubeconfig.path)/kubeconfig"
+        echo "clusters: []" >> "$(workspaces.kubeconfig.path)/kubeconfig"

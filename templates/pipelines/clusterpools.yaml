@@ -1,0 +1,48 @@
+{{- if .Values.pipelines.requireClusterPools }}
+{{- range $platformName, $pools := .Values.pipelines.clusterpools }}
+  {{- range $poolName, $poolCfg := $pools }}
+    {{- if $poolCfg.control_plane }}
+      {{- $settings := include "tekton.platformSettings" (dict "root" $ "platformName" $platformName "poolCfg" $poolCfg) | fromJson }}
+      {{- $installConfigSecret := include "tekton.installConfigSecretName" (dict "platformName" $platformName "poolProfile" $poolName) }}
+      {{- $versions := include "tekton.poolVersions" (dict "root" $ "platformName" $platformName "poolProfile" $poolName) | fromJson }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $installConfigSecret }}
+  namespace: {{ $.Values.pipelineNamespace }}
+type: Opaque
+stringData:
+  install-config.yaml: |
+    {{- include "tekton.installConfigYaml" (dict "root" $ "platformName" $platformName "poolCfg" $poolCfg "settings" (include "tekton.platformSettings" (dict "root" $ "platformName" $platformName "poolCfg" $poolCfg))) | nindent 4 }}
+      {{- range $version, $_ := $versions }}
+---
+apiVersion: hive.openshift.io/v1
+kind: ClusterPool
+metadata:
+  name: {{ include "tekton.clusterPoolName" (dict "platformName" $platformName "poolProfile" $poolName "version" $version) }}
+  namespace: {{ $.Values.pipelineNamespace }}
+  labels:
+    cloud: {{ $platformName | upper }}
+    region: {{ $settings.region }}
+    vendor: OpenShift
+    hive.openshift.io/version: {{ $version | replace "." "-" }}
+spec:
+  baseDomain: {{ $settings.baseDomain }}
+  imageSetRef:
+    name: {{ include "tekton.imageSetRef" (dict "root" $ "version" $version) | quote }}
+  installConfigSecretTemplateRef:
+    name: {{ $installConfigSecret }}
+  platform:
+    {{ $platformName }}:
+      credentialsSecretRef:
+        name: {{ $settings.credentialsSecret }}
+      region: {{ $settings.region }}
+  pullSecretRef:
+    name: global-pullsecret
+  size: {{ default 1 $poolCfg.pooled_cluster_size }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

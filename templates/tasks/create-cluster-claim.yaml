@@ -1,0 +1,100 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: create-clusterclaim-with-kubeconfig
+  namespace: {{ .Values.pipelineNamespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: >
+    Creates a ClusterClaim in a cluster pool and waits for it to be filled and extracts kubeconfig
+  params:
+    - name: clusterpool
+      type: string
+    - name: clusterclaimname
+      type: string
+    - name: clusterclaimnamespace
+      type: string
+    - name: wait-timeout-minutes
+      type: string
+      default: "90"
+  workspaces:
+    - name: kubeconfig
+  steps:
+    - name: create-clusterclaim
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        echo "Creating a clusterclaim: $(params.clusterclaimname) from pool: $(params.clusterpool) in $(params.clusterclaimnamespace)"
+        cat <<EOF | oc apply -f -
+        apiVersion: hive.openshift.io/v1
+        kind: ClusterClaim
+        metadata:
+          name: $(params.clusterclaimname)
+          namespace: $(params.clusterclaimnamespace)
+        spec:
+          clusterPoolName: $(params.clusterpool)
+        EOF
+
+    - name: wait-claim-fill
+      image:  {{ .Values.toolsImage }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        TIMEOUT=$(params.wait-timeout-minutes)
+        TIMEOUT_SECS=$((TIMEOUT * 60))
+
+        echo "Waiting for clusterclaim's cluster to be ready..."
+        oc wait clusterclaim.hive.openshift \
+          -n $(params.clusterclaimnamespace) \
+          --for=condition=ClusterRunning=True \
+          --timeout="${TIMEOUT_SECS}s" $(params.clusterclaimname)
+
+    - name: extract-kubeconfig
+      image:  {{ .Values.toolsImage }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        CLUSTER_NAME=$(oc get clusterclaim.hive.openshift \
+          -n $(params.clusterclaimnamespace) \
+          -o jsonpath='{.spec.namespace}' \
+          $(params.clusterclaimname))
+
+        echo "Extracting kubeconfig for cluster...${CLUSTER_NAME}"
+
+        # Extract admin kubeconfig
+        KUBECONFIG_SECRET=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "${CLUSTER_NAME}" \
+          -o jsonpath='{.spec.clusterMetadata.adminKubeconfigSecretRef.name}')
+
+        echo "Extracting kubeconfig from secret ${KUBECONFIG_SECRET}"
+        oc get secret "${KUBECONFIG_SECRET}" \
+          -n "${CLUSTER_NAME}" \
+          -o jsonpath='{.data.kubeconfig}' | base64 -d > $(workspaces.kubeconfig.path)/kubeconfig
+
+        # Extract admin password if available
+        PASSWORD_SECRET=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "${CLUSTER_NAME}" \
+          -o jsonpath='{.spec.clusterMetadata.adminPasswordSecretRef.name}')
+
+        if [ -n "$PASSWORD_SECRET" ]; then
+          oc get secret "${PASSWORD_SECRET}" \
+            -n "${CLUSTER_NAME}" \
+            -o jsonpath='{.data.password}' | base64 -d > $(workspaces.kubeconfig.path)/admin-password
+        fi
+
+        # Print cluster info
+        API_URL=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "${CLUSTER_NAME}" \
+          -o jsonpath='{.status.apiURL}' 2>/dev/null || echo "pending")
+        CONSOLE_URL=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "${CLUSTER_NAME}" \
+          -o jsonpath='{.status.webConsoleURL}' 2>/dev/null || echo "pending")
+
+        echo "============================================"
+        echo "Cluster: ${CLUSTER_NAME}"
+        echo "API URL: ${API_URL}"
+        echo "Console: ${CONSOLE_URL}"
+        echo "Kubeconfig: $(workspaces.kubeconfig.path)/kubeconfig"
+

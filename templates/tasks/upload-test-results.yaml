@@ -1,0 +1,19 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upload-test-results
+  namespace: {{ .Values.pipelineNamespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: Upload interop test results
+  params:
+    - name: application
+      type: string
+  steps:
+    - name: upload-tests
+      image: quay.io/validatedpatterns/utility-container
+      script: |
+        #!/usr/bin/env bash
+        # TODO: upload test results artifact
+        echo "upload test results for $(params.application)"

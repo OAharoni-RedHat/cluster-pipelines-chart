@@ -1,0 +1,23 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: must-gather
+  namespace: {{ .Values.pipelineNamespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: Collect must-gather from a failed cluster
+  params:
+    - name: application
+      type: string
+  results:
+    - name: outcome
+  steps:
+    - name: must-gather
+      image: quay.io/validatedpatterns/utility-container
+      script: |
+        #!/usr/bin/env bash
+        trap 'echo -n failed > "$(results.outcome.path)"' ERR
+        # TODO: collect must-gather from failed cluster
+        echo "must-gather for $(params.application)"
+        echo -n success > "$(results.outcome.path)"

@@ -1,4 +1,4 @@
-pipelineNamespace: cluster-provisioning
+pipelineNamespace: aeros-qe-test-stuff #cluster-provisioning
 
 # Hub pattern may pass clusterGroup (namespaces, applications) for conditional behavior.
 clusterGroup: {}
@@ -41,3 +41,142 @@ hypershift:
 hive:
   defaultControlPlaneReplicas: "3"
   defaultWorkerReplicas: "3"
+
+pipelines:
+  defaults:
+    platforms:
+      aws:
+        defaultClusterPool: default
+        region: us-east-1
+        baseDomain: aws.validatedpatterns.io
+      gcp:
+        defaultClusterPool: default
+        region: us-central1
+        baseDomain: gcp.validatedpatterns.io
+      azure:
+        defaultClusterPool: default
+        region: eastus
+        baseDomain: azure.validatedpatterns.io
+    ocp_versions:
+      - "4.18"
+      - "4.20"
+      - "4.21"
+    flavors:
+      - hub # This will be a hive made regular single cluster
+      - hub-spoke  # This will be a hive made regular hub and spoke cluster
+      - hcp # this will be just a single hub cluster setup with hcp hosted clusters
+    networking:
+      networkType: OVNKubernetes
+      clusterNetwork:
+        - cidr: 10.128.0.0/14
+          hostPrefix: 23
+      machineNetwork:
+        - cidr: 10.0.0.0/16
+      serviceNetwork:
+        - 172.30.0.0/16
+
+  # Short OCP version (e.g. "4.21") -> ClusterImageSet name on the hub
+  imageSets:
+    "4.18": img4.18.12-x86-64-appsub
+    "4.20": img4.20.3-x86-64-appsub
+    "4.21": img4.21.6-x86-64-appsub
+
+  # When true, pipeline matrix only includes platforms defined under clusterpools.
+  # When false (default), platforms come from defaults/pattern overrides independently.
+  requireClusterPools: false
+
+  # Optional Hive ClusterPool resources. Omitted or empty: no ClusterPool CRs rendered;
+  # pipelines still generate from defaults.platforms + defaults.ocp_versions.
+  clusterpools:
+    aws:
+      default:
+        control_plane:
+          size: m5.xlarge
+          replica: 3
+        compute:
+          size: m5.2xlarge
+          replica: 3
+        pooled_cluster_size: 1 # warm clusters hibernated and ready to be claimed
+        scaling_schedule:
+          nightly:
+            schedule: '* * * *'
+            pooled_cluster_size: 4
+      beefy:
+        versions:
+          - "4.21"
+        control_plane:
+          size: m5.4xlarge
+          replica: 3
+        compute:
+          size: m5.4xlarge
+          replica: 3
+        pooled_cluster_size: 1
+        scaling_schedule:
+          nightly:
+            schedule: '* * * *'
+            pooled_cluster_size: 2
+      # metal:
+    gcp:
+      default:
+        control_plane:
+          size: n1-standard-4
+          replica: 3
+        compute:
+          size: n1-standard-8
+          replica: 3
+        pooled_cluster_size: 1
+        scaling_schedule:
+          nightly:
+            schedule: '* * * *'
+            pooled_cluster_size: 4
+      beefy:
+        control_plane:
+          size: n1-standard-16
+          replica: 3
+        compute:
+          size: n1-standard-16
+          replica: 3
+        pooled_cluster_size: 1
+        scaling_schedule:
+          nightly:
+            schedule: '* * * *'
+            pooled_cluster_size: 4
+      # metal:
+    # azure:
+    #   default:
+    #   beefy:
+
+  patterns:
+  # These are the maintained tier
+    mcg:
+      repo: https://github.com/validatedpatterns/multicloud-gitops.git
+
+    # ansible-edge:
+    #   repo: https://github.com/validatedpatterns/ansible-edge-gitops.git
+    #   platforms: #if empty, or unset it will be the defaults.platforms
+    #     aws: {}
+    #   flavors: #if empty, or unset it will be the default
+    #     - hub
+
+    # industrial-edge:
+    #   repo: https://github.com/validatedpatterns/industrial-edge.git
+    #   flavors: 
+    #     - hub_spoke
+    #   clusterPool: beefy  #if empty, or unset it will be the default
+
+    # medical-diag:
+    #   repo: https://github.com/validatedpatterns/medical-diagnosis.git
+    #   flavors:
+    #     - hub
+    #   clusterPool: beefy
+
+    # # These are the tested tier
+    # layered-zero:
+    # travelops:
+    # hypershift:
+    # retail:
+    # ragllm:
+    #   platforms:
+    #     aws: {}
+    #   flavors:
+    #     hub: {}
