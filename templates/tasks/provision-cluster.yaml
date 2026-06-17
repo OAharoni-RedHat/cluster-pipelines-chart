@@ -12,6 +12,9 @@ spec:
     - name: cluster-name
       type: string
       default: ""
+    - name: namespace
+      type: string
+      default: {{ .Values.pipelineNamespace }}
     - name: platform
       type: string
       default: ""
@@ -21,6 +24,9 @@ spec:
     - name: wait-timeout-minutes
       type: string
       default: "90"
+    - name: ssh-public-key
+      type: string
+      default: ""
     - name: control-plane-config
       type: object
       properties:
@@ -42,16 +48,46 @@ spec:
 
   workspaces:
     - name: kubeconfig
+    - name: install-config
+      description: Holds generated install-config.yaml
   steps:
+    - name: generate-install-config
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        CLUSTER_NAME="$(params.cluster-name)"
+        PLATFORM="$(params.platform)"
+        CLOUD_PROVIDER="${PLATFORM}"
+        CP_REPLICAS="$(params.control-plane-config.replicas)"
+        CP_TYPE="$(params.control-plane-config.type)"
+        WORKER_REPLICAS="$(params.compute-nodes-config.replicas)"
+        WORKER_TYPE="$(params.compute-nodes-config.type)"
+        SSH_KEY="$(params.ssh-public-key)"
+        OUT="$(workspaces.install-config.path)/install-config.yaml"
+        GCP_PROJECT=""
+        AZ_RG=""
+
+        case "${PLATFORM}" in
+        {{ include "tasks.installConfig.platformEnvCase" . | nindent 8 }}
+        esac
+
+        mkdir -p "$(workspaces.install-config.path)"
+
+        {{ include "tasks.installConfig.generateScript" . | nindent 8 }}
+
+        echo "Generated install-config for ${CLUSTER_NAME}:"
+        cat "${OUT}"
+
     - name: create-hive-cluster
       image: {{ .Values.toolsImage }}
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
-        # TODO: wire deploy-hive tasks (namespace, externalsecrets, install-config, clusterdeployment, wait)
-        echo "TODO: create Hive cluster $(params.cluster-name)"
-        echo "  ocp-version=$(params.ocp-version)"
+        # TODO: namespace, externalsecrets, install-config secret, clusterdeployment, wait
+        echo "TODO: apply Hive resources for $(params.cluster-name) in namespace $(params.namespace)"
+        echo "  platform=$(params.platform) ocp-version=$(params.ocp-version)"
         echo "  timeout=$(params.wait-timeout-minutes)m"
-        echo "controlPlane: replicas=$(params.control-plane-config.replicas) type=$(params.control-plane-config.type)"
-        echo "compute nodes: replicas=$(params.compute-nodes-config.replicas) type=$(params.compute-nodes-config.type)"
+        echo "  install-config: $(workspaces.install-config.path)/install-config.yaml"
         exit 1

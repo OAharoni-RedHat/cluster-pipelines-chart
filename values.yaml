@@ -53,10 +53,12 @@ pipelines:
         defaultClusterPool: default
         region: us-central1
         baseDomain: gcp.validatedpatterns.io
+        projectId: ""
       azure:
         defaultClusterPool: default
         region: eastus
         baseDomain: azure.validatedpatterns.io
+        resourceGroup: ""
     ocp_versions:
       - "4.18"
       - "4.20"

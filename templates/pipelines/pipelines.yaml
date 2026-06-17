@@ -30,6 +30,7 @@
               "flavorName" $flavorName
               "waitTimeoutMinutes" "90"
               "repo" (default "" $app.repo)
+              "pipelineNamespace" $.Values.pipelineNamespace
             }}
 ---
 apiVersion: tekton.dev/v1
