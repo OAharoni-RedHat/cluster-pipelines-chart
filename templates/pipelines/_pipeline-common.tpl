@@ -45,18 +45,14 @@ Checkout, metadata validation, and sizing (always first).
   taskRef:
     name: resolve-pattern-sizing
   params:
-    - name: application
-      value: {{ .appName | quote }}
-    - name: platform
-      value: {{ .platformName | quote }}
-    - name: flavor
-      value: {{ .flavorName | quote }}
-    - name: ocpVersion
-      value: {{ .ocpVersion | quote }}
-  workspaces:
-    - name: pattern-repo
-      workspace: shared-data
-      subPath: repo
+    - name: hub-control-plane
+      value: $(tasks.validate-pattern-metadata.results.hub-control-plane[*])
+    - name: hub-compute-nodes
+      value: $(tasks.validate-pattern-metadata.results.hub-compute-nodes[*])
+    - name: spoke-control-plane
+      value: $(tasks.validate-pattern-metadata.results.spoke-control-plane[*])
+    - name: spoke-compute-nodes
+      value: $(tasks.validate-pattern-metadata.results.spoke-compute-nodes[*])
 {{- end }}
 
 {{/*
@@ -67,23 +63,16 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
   onError: continue
   runAfter:
     {{- if eq .flavorName "hub" }}
-    - provision-from-pool
-    - provision-from-hive
+    - provision-cluster
     {{- else if eq .flavorName "hub-spoke" }}
-    - provision-spoke-from-pool
-    - provision-spoke-from-hive
+    - provision-hub
+    - provision-spoke
     {{- else }}
     - provision-hosted-cluster
     {{- end }}
   taskRef:
     name: install-pattern
   params:
-    - name: application
-      value: {{ .appName | quote }}
-    - name: flavor
-      value: {{ .flavorName | quote }}
-    - name: clusterPool
-      value: {{ .clusterPool | quote }}
   workspaces:
     - name: pattern-repo
       workspace: shared-data

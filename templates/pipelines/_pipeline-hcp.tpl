@@ -4,7 +4,7 @@ HCP flavor: HyperShift hosted cluster (after metadata validation).
 {{- define "pipelines.provision.hcp" -}}
 - name: provision-hosted-cluster
   runAfter:
-    - resolve-pattern-sizing
+    - validate-pattern-metadata
   taskRef:
     name: provision-hosted-cluster
   params:

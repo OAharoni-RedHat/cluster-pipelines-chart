@@ -149,7 +149,8 @@ pipelines:
   patterns:
   # These are the maintained tier
     mcg:
-      repo: https://github.com/validatedpatterns/multicloud-gitops.git
+      repo: https://github.com/darkdoc/multicloud-gitops.git
+      revision: pipeline_test
 
     # ansible-edge:
     #   repo: https://github.com/validatedpatterns/ansible-edge-gitops.git

@@ -59,12 +59,12 @@ spec:
     - name: pattern-repo-revision
       type: string
       description: Git revision (branch, tag, or SHA)
-      default: "main"
+      default: {{ default "main" $app.revision | quote }}
     {{- if or (eq $flavorName "hub") (eq $flavorName "hub-spoke") }}
     - name: useClusterPool
       type: string
       description: "When true, provision via ClusterPool claim; when false, deploy Hive clusters directly"
-      default: {{ ternary "true" "false" (not (empty $.Values.pipelines.clusterpools)) | quote }}
+      default: false
     {{- end }}
   workspaces:
     - name: shared-data

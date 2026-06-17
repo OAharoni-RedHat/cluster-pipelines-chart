@@ -29,8 +29,6 @@ Direct Hive deploy provision params (baked at render time).
   value: {{ .clusterClaimNamespace | quote }}
 - name: cluster-role
   value: {{ .clusterRole | quote }}
-- name: wait-timeout-minutes
-  value: {{ .waitTimeoutMinutes | quote }}
 {{- end }}
 
 {{/*
@@ -57,4 +55,24 @@ Direct Hive deploy cleanup params (baked at render time).
   value: {{ .clusterClaimNamespace | quote }}
 - name: cluster-role
   value: {{ .clusterRole | quote }}
+{{- end }}
+
+{{/*
+All params for provision-cluster wrapper task (pool + hive paths).
+*/}}
+{{- define "pipelines.provision.cluster.wrapper.params" -}}
+- name: useClusterPool
+  value: $(params.useClusterPool)
+{{ include "pipelines.provision.cluster.pool.params" . }}
+{{ include "pipelines.provision.cluster.hive.params" . }}
+{{- end }}
+
+{{/*
+All params for delete-cluster wrapper task (pool + hive paths).
+*/}}
+{{- define "pipelines.cleanup.cluster.wrapper.params" -}}
+- name: useClusterPool
+  value: $(params.useClusterPool)
+{{ include "pipelines.cleanup.cluster.pool.params" . }}
+{{ include "pipelines.cleanup.cluster.hive.params" . }}
 {{- end }}

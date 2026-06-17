@@ -6,32 +6,13 @@ Hub flavor: single cluster (pool claim or Hive deploy, after metadata validation
       "clusterName" (printf "%s-%s" .appName .platformName)
       "clusterRole" "hub"
     ) -}}
-- name: provision-from-pool
+- name: provision-cluster
   runAfter:
-    - resolve-pattern-sizing
-  when:
-    - input: "$(params.useClusterPool)"
-      operator: in
-      values: ["true"]
+    - validate-pattern-metadata
   taskRef:
-    name: create-clusterclaim-with-kubeconfig
+    name: provision-cluster
   params:
-{{ include "pipelines.provision.cluster.pool.params" $params | nindent 4 }}
-  workspaces:
-    - name: kubeconfig
-      workspace: shared-data
-      subPath: kubeconfig
-- name: provision-from-hive
-  runAfter:
-    - resolve-pattern-sizing
-  when:
-    - input: "$(params.useClusterPool)"
-      operator: in
-      values: ["false"]
-  taskRef:
-    name: create-hive-cluster
-  params:
-{{ include "pipelines.provision.cluster.hive.params" $params | nindent 4 }}
+{{ include "pipelines.provision.cluster.wrapper.params" $params | nindent 4 }}
   workspaces:
     - name: kubeconfig
       workspace: shared-data
@@ -43,28 +24,13 @@ Hub flavor: single cluster (pool claim or Hive deploy, after metadata validation
       "clusterName" (printf "%s-%s" .appName .platformName)
       "clusterRole" "hub"
     ) -}}
-- name: delete-from-pool-if-succeeded
+- name: delete-cluster-if-succeeded
   when:
     - input: $(tasks.status)
       operator: in
       values: ["Completed"]
-    - input: "$(params.useClusterPool)"
-      operator: in
-      values: ["true"]
   taskRef:
-    name: delete-cluster-claim
+    name: delete-cluster
   params:
-{{ include "pipelines.cleanup.cluster.pool.params" $params | nindent 4 }}
-- name: delete-from-hive-if-succeeded
-  when:
-    - input: $(tasks.status)
-      operator: in
-      values: ["Completed"]
-    - input: "$(params.useClusterPool)"
-      operator: in
-      values: ["false"]
-  taskRef:
-    name: delete-hive-cluster
-  params:
-{{ include "pipelines.cleanup.cluster.hive.params" $params | nindent 4 }}
+{{ include "pipelines.cleanup.cluster.wrapper.params" $params | nindent 4 }}
 {{- end }}
