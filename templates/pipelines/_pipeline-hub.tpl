@@ -13,6 +13,10 @@ Hub flavor: single cluster (pool claim or Hive deploy, after metadata validation
     name: provision-cluster
   params:
 {{ include "pipelines.provision.cluster.wrapper.params" $params | nindent 4 }}
+    - name: control-plane-config
+      value: $(tasks.validate-pattern-metadata.results.hub-control-plane[*])
+    - name: compute-nodes-config
+      value: $(tasks.validate-pattern-metadata.results.hub-compute-nodes[*])
   workspaces:
     - name: kubeconfig
       workspace: shared-data

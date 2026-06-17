@@ -39,20 +39,6 @@ Checkout, metadata validation, and sizing (always first).
     - name: pattern-repo
       workspace: shared-data
       subPath: repo
-- name: resolve-pattern-sizing
-  runAfter:
-    - validate-pattern-metadata
-  taskRef:
-    name: resolve-pattern-sizing
-  params:
-    - name: hub-control-plane
-      value: $(tasks.validate-pattern-metadata.results.hub-control-plane[*])
-    - name: hub-compute-nodes
-      value: $(tasks.validate-pattern-metadata.results.hub-compute-nodes[*])
-    - name: spoke-control-plane
-      value: $(tasks.validate-pattern-metadata.results.spoke-control-plane[*])
-    - name: spoke-compute-nodes
-      value: $(tasks.validate-pattern-metadata.results.spoke-compute-nodes[*])
 {{- end }}
 
 {{/*

@@ -18,6 +18,10 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
     name: provision-cluster
   params:
 {{ include "pipelines.provision.cluster.wrapper.params" $hubParams | nindent 4 }}
+    - name: control-plane-config
+      value: $(tasks.validate-pattern-metadata.results.hub-control-plane[*])
+    - name: compute-nodes-config
+      value: $(tasks.validate-pattern-metadata.results.hub-compute-nodes[*])
   workspaces:
     - name: kubeconfig
       workspace: shared-data
@@ -29,6 +33,10 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
     name: provision-cluster
   params:
 {{ include "pipelines.provision.cluster.wrapper.params" $spokeParams | nindent 4 }}
+    - name: control-plane-config
+      value: $(tasks.validate-pattern-metadata.results.spoke-control-plane[*])
+    - name: compute-nodes-config
+      value: $(tasks.validate-pattern-metadata.results.spoke-compute-nodes[*])
   workspaces:
     - name: kubeconfig
       workspace: shared-data
