@@ -28,10 +28,6 @@
               "platformName" $platformName
               "ocpVersion" $ocpVersion
               "flavorName" $flavorName
-              "poolProfile" $poolProfile
-              "clusterPool" (include "tekton.clusterPoolName" (dict "platformName" $platformName "poolProfile" $poolProfile "version" $ocpVersion))
-              "clusterClaimName" (printf "%s-%s-claim" $appName $platformName)
-              "clusterClaimNamespace" $.Values.pipelineNamespace
               "waitTimeoutMinutes" "90"
               "repo" (default "" $app.repo)
             }}
@@ -46,7 +42,6 @@ metadata:
     pattern.platform: {{ $platformName }}
     pattern.ocp-version: {{ $ocpVersion | replace "." "-" }}
     pattern.flavor: {{ $flavorName }}
-    pattern.cluster-pool: {{ include "tekton.clusterPoolName" (dict "platformName" $platformName "poolProfile" $poolProfile "version" $ocpVersion) }}
 spec:
   description: >
     Pattern test pipeline for {{ $appName }} on {{ $platformName }} (OCP {{ $ocpVersion }}, {{ $flavorName }}).
@@ -60,12 +55,6 @@ spec:
       type: string
       description: Git revision (branch, tag, or SHA)
       default: {{ default "main" $app.revision | quote }}
-    {{- if or (eq $flavorName "hub") (eq $flavorName "hub-spoke") }}
-    - name: useClusterPool
-      type: string
-      description: "When true, provision via ClusterPool claim; when false, deploy Hive clusters directly"
-      default: false
-    {{- end }}
   workspaces:
     - name: shared-data
   tasks:

@@ -7,22 +7,8 @@ metadata:
     {{- include "pipelines.labels" . | nindent 4 }}
 spec:
   description: >
-    Provision a cluster via ClusterPool claim or direct Hive deploy,
-    selected at run time by useClusterPool.
+    Provision a cluster via Hive deploy.
   params:
-    - name: useClusterPool
-      type: string
-      description: When true, claim from pool; when false, deploy via Hive
-      default: "false"
-    - name: clusterpool
-      type: string
-      default: ""
-    - name: clusterclaimname
-      type: string
-      default: ""
-    - name: clusterclaimnamespace
-      type: string
-      default: ""
     - name: cluster-name
       type: string
       default: ""
@@ -57,74 +43,7 @@ spec:
   workspaces:
     - name: kubeconfig
   steps:
-    - name: create-clusterclaim
-      when:
-        - input: "$(params.useClusterPool)"
-          operator: in
-          values: ["true"]
-      image: {{ .Values.toolsImage }}
-      script: |
-        #!/usr/bin/env bash
-        set -euo pipefail
-        echo "Creating a clusterclaim: $(params.clusterclaimname) from pool: $(params.clusterpool) in $(params.clusterclaimnamespace)"
-        cat <<EOF | oc apply -f -
-        apiVersion: hive.openshift.io/v1
-        kind: ClusterClaim
-        metadata:
-          name: $(params.clusterclaimname)
-          namespace: $(params.clusterclaimnamespace)
-        spec:
-          clusterPoolName: $(params.clusterpool)
-        EOF
-    - name: wait-claim-fill
-      when:
-        - input: "$(params.useClusterPool)"
-          operator: in
-          values: ["true"]
-      image: {{ .Values.toolsImage }}
-      script: |
-        #!/usr/bin/env bash
-        set -euo pipefail
-        TIMEOUT=$(params.wait-timeout-minutes)
-        TIMEOUT_SECS=$((TIMEOUT * 60))
-        echo "Waiting for clusterclaim's cluster to be ready..."
-        oc wait clusterclaim.hive.openshift \
-          -n $(params.clusterclaimnamespace) \
-          --for=condition=ClusterRunning=True \
-          --timeout="${TIMEOUT_SECS}s" $(params.clusterclaimname)
-    - name: extract-kubeconfig
-      when:
-        - input: "$(params.useClusterPool)"
-          operator: in
-          values: ["true"]
-      image: {{ .Values.toolsImage }}
-      script: |
-        #!/usr/bin/env bash
-        set -euo pipefail
-        CLUSTER_NAME=$(oc get clusterclaim.hive.openshift \
-          -n $(params.clusterclaimnamespace) \
-          -o jsonpath='{.spec.namespace}' \
-          $(params.clusterclaimname))
-        echo "Extracting kubeconfig for cluster...${CLUSTER_NAME}"
-        KUBECONFIG_SECRET=$(oc get clusterdeployment "${CLUSTER_NAME}" \
-          -n "${CLUSTER_NAME}" \
-          -o jsonpath='{.spec.clusterMetadata.adminKubeconfigSecretRef.name}')
-        oc get secret "${KUBECONFIG_SECRET}" \
-          -n "${CLUSTER_NAME}" \
-          -o jsonpath='{.data.kubeconfig}' | base64 -d > $(workspaces.kubeconfig.path)/kubeconfig
-        PASSWORD_SECRET=$(oc get clusterdeployment "${CLUSTER_NAME}" \
-          -n "${CLUSTER_NAME}" \
-          -o jsonpath='{.spec.clusterMetadata.adminPasswordSecretRef.name}')
-        if [ -n "$PASSWORD_SECRET" ]; then
-          oc get secret "${PASSWORD_SECRET}" \
-            -n "${CLUSTER_NAME}" \
-            -o jsonpath='{.data.password}' | base64 -d > $(workspaces.kubeconfig.path)/admin-password
-        fi
     - name: create-hive-cluster
-      when:
-        - input: "$(params.useClusterPool)"
-          operator: in
-          values: ["false"]
       image: {{ .Values.toolsImage }}
       script: |
         #!/usr/bin/env bash

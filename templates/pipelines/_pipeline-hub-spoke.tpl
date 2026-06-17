@@ -17,7 +17,7 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
   taskRef:
     name: provision-cluster
   params:
-{{ include "pipelines.provision.cluster.wrapper.params" $hubParams | nindent 4 }}
+{{ include "pipelines.provision.cluster.hive.params" $hubParams | nindent 4 }}
     - name: control-plane-config
       value: $(tasks.validate-pattern-metadata.results.hub-control-plane[*])
     - name: compute-nodes-config
@@ -32,7 +32,7 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
   taskRef:
     name: provision-cluster
   params:
-{{ include "pipelines.provision.cluster.wrapper.params" $spokeParams | nindent 4 }}
+{{ include "pipelines.provision.cluster.hive.params" $spokeParams | nindent 4 }}
     - name: control-plane-config
       value: $(tasks.validate-pattern-metadata.results.spoke-control-plane[*])
     - name: compute-nodes-config
@@ -61,7 +61,7 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
   taskRef:
     name: delete-cluster
   params:
-{{ include "pipelines.cleanup.cluster.wrapper.params" $spokeParams | nindent 4 }}
+{{ include "pipelines.cleanup.cluster.hive.params" $spokeParams | nindent 4 }}
 - name: delete-hub-if-succeeded
   when:
     - input: $(tasks.status)
@@ -70,5 +70,5 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
   taskRef:
     name: delete-cluster
   params:
-{{ include "pipelines.cleanup.cluster.wrapper.params" $hubParams | nindent 4 }}
+{{ include "pipelines.cleanup.cluster.hive.params" $hubParams | nindent 4 }}
 {{- end }}

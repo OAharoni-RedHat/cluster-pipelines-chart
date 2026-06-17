@@ -12,7 +12,7 @@ Hub flavor: single cluster (pool claim or Hive deploy, after metadata validation
   taskRef:
     name: provision-cluster
   params:
-{{ include "pipelines.provision.cluster.wrapper.params" $params | nindent 4 }}
+{{ include "pipelines.provision.cluster.hive.params" $params | nindent 4 }}
     - name: control-plane-config
       value: $(tasks.validate-pattern-metadata.results.hub-control-plane[*])
     - name: compute-nodes-config
@@ -36,5 +36,5 @@ Hub flavor: single cluster (pool claim or Hive deploy, after metadata validation
   taskRef:
     name: delete-cluster
   params:
-{{ include "pipelines.cleanup.cluster.wrapper.params" $params | nindent 4 }}
+{{ include "pipelines.cleanup.cluster.hive.params" $params | nindent 4 }}
 {{- end }}

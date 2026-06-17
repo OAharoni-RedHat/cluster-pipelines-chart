@@ -7,17 +7,8 @@ metadata:
     {{- include "pipelines.labels" . | nindent 4 }}
 spec:
   description: >
-    Delete a cluster via ClusterClaim or Hive teardown,
-    selected at run time by useClusterPool.
+    Delete a cluster via Hive teardown.
   params:
-    - name: useClusterPool
-      type: string
-    - name: clusterClaimName
-      type: string
-      default: ""
-    - name: clusterClaimNamespace
-      type: string
-      default: ""
     - name: cluster-name
       type: string
       default: ""
@@ -34,23 +25,7 @@ spec:
       type: string
       default: "hub"
   steps:
-    - name: delete-cluster-claim
-      when:
-        - input: "$(params.useClusterPool)"
-          operator: in
-          values: ["true"]
-      image: {{ .Values.toolsImage }}
-      script: |
-        #!/usr/bin/env bash
-        set -euo pipefail
-        echo "TODO: delete ClusterClaim $(params.clusterClaimName) in $(params.clusterClaimNamespace)"
-        # oc delete clusterclaim.hive.openshift.io/$(params.clusterClaimName) \
-        #   -n $(params.clusterClaimNamespace) --ignore-not-found
     - name: delete-hive-cluster
-      when:
-        - input: "$(params.useClusterPool)"
-          operator: in
-          values: ["false"]
       image: {{ .Values.toolsImage }}
       script: |
         #!/usr/bin/env bash
