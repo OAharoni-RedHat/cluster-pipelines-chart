@@ -46,16 +46,13 @@ pipelines:
   defaults:
     platforms:
       aws:
-        defaultClusterPool: default
         region: us-east-1
         baseDomain: aws.validatedpatterns.io
       gcp:
-        defaultClusterPool: default
         region: us-central1
         baseDomain: gcp.validatedpatterns.io
         projectId: ""
       azure:
-        defaultClusterPool: default
         region: eastus
         baseDomain: azure.validatedpatterns.io
         resourceGroup: ""
@@ -83,71 +80,6 @@ pipelines:
     "4.20": img4.20.3-x86-64-appsub
     "4.21": img4.21.6-x86-64-appsub
 
-  # When true, pipeline matrix only includes platforms defined under clusterpools.
-  # When false (default), platforms come from defaults/pattern overrides independently.
-  requireClusterPools: false
-
-  # Optional Hive ClusterPool resources. Omitted or empty: no ClusterPool CRs rendered;
-  # pipelines still generate from defaults.platforms + defaults.ocp_versions.
-  clusterpools:
-    aws:
-      default:
-        control_plane:
-          size: m5.xlarge
-          replica: 3
-        compute:
-          size: m5.2xlarge
-          replica: 3
-        pooled_cluster_size: 1 # warm clusters hibernated and ready to be claimed
-        scaling_schedule:
-          nightly:
-            schedule: '* * * *'
-            pooled_cluster_size: 4
-      beefy:
-        versions:
-          - "4.21"
-        control_plane:
-          size: m5.4xlarge
-          replica: 3
-        compute:
-          size: m5.4xlarge
-          replica: 3
-        pooled_cluster_size: 1
-        scaling_schedule:
-          nightly:
-            schedule: '* * * *'
-            pooled_cluster_size: 2
-      # metal:
-    gcp:
-      default:
-        control_plane:
-          size: n1-standard-4
-          replica: 3
-        compute:
-          size: n1-standard-8
-          replica: 3
-        pooled_cluster_size: 1
-        scaling_schedule:
-          nightly:
-            schedule: '* * * *'
-            pooled_cluster_size: 4
-      beefy:
-        control_plane:
-          size: n1-standard-16
-          replica: 3
-        compute:
-          size: n1-standard-16
-          replica: 3
-        pooled_cluster_size: 1
-        scaling_schedule:
-          nightly:
-            schedule: '* * * *'
-            pooled_cluster_size: 4
-      # metal:
-    # azure:
-    #   default:
-    #   beefy:
-
   patterns:
   # These are the maintained tier
     mcg:
@@ -165,13 +97,11 @@ pipelines:
     #   repo: https://github.com/validatedpatterns/industrial-edge.git
     #   flavors: 
     #     - hub_spoke
-    #   clusterPool: beefy  #if empty, or unset it will be the default
 
     # medical-diag:
     #   repo: https://github.com/validatedpatterns/medical-diagnosis.git
     #   flavors:
     #     - hub
-    #   clusterPool: beefy
 
     # # These are the tested tier
     # layered-zero:

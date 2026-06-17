@@ -58,24 +58,101 @@ spec:
         set -euo pipefail
 
         CLUSTER_NAME="$(params.cluster-name)"
+
         PLATFORM="$(params.platform)"
-        CLOUD_PROVIDER="${PLATFORM}"
+
         CP_REPLICAS="$(params.control-plane-config.replicas)"
         CP_TYPE="$(params.control-plane-config.type)"
+
         WORKER_REPLICAS="$(params.compute-nodes-config.replicas)"
         WORKER_TYPE="$(params.compute-nodes-config.type)"
         SSH_KEY="$(params.ssh-public-key)"
         OUT="$(workspaces.install-config.path)/install-config.yaml"
-        GCP_PROJECT=""
-        AZ_RG=""
+
 
         case "${PLATFORM}" in
-        {{ include "tasks.installConfig.platformEnvCase" . | nindent 8 }}
+        {{- range $name, $cfg := .Values.pipelines.defaults.platforms }}
+          {{ $name }})
+            BASE_DOMAIN={{ $cfg.baseDomain | quote }}
+            CLOUD_REGION={{ $cfg.region | quote }}
+            {{- if eq $name "gcp" }}
+            GCP_PROJECT={{ default "" $cfg.projectId | quote }}
+            {{- end }}
+            {{- if eq $name "azure" }}
+            AZ_RG={{ default "" $cfg.resourceGroup | quote }}
+            {{- end }}
+            ;;
+        {{- end }}
+          *)
+            echo "unsupported platform: ${PLATFORM}" >&2
+            exit 1
+            ;;
         esac
 
         mkdir -p "$(workspaces.install-config.path)"
 
-        {{ include "tasks.installConfig.generateScript" . | nindent 8 }}
+        cat > "${OUT}" <<EOF
+        apiVersion: v1
+        baseDomain: ${BASE_DOMAIN}
+        compute:
+        - architecture: amd64
+          hyperthreading: Enabled
+          name: worker
+          replicas: ${WORKER_REPLICAS}
+          platform:
+            ${PLATFORM}:
+              type: ${WORKER_TYPE}
+        controlPlane:
+          architecture: amd64
+          hyperthreading: Enabled
+          name: master
+          replicas: ${CP_REPLICAS}
+          platform:
+            ${PLATFORM}:
+              type: ${CP_TYPE}
+        metadata:
+          name: ${CLUSTER_NAME}
+        networking:
+          clusterNetwork:
+          - cidr: {{ (index .Values.pipelines.defaults.networking.clusterNetwork 0).cidr }}
+            hostPrefix: {{ (index .Values.pipelines.defaults.networking.clusterNetwork 0).hostPrefix }}
+          machineNetwork:
+          - cidr: {{ (index .Values.pipelines.defaults.networking.machineNetwork 0).cidr }}
+          networkType: {{ .Values.pipelines.defaults.networking.networkType }}
+          serviceNetwork:
+          - {{ index .Values.pipelines.defaults.networking.serviceNetwork 0 }}
+        pullSecret: ""
+        platform:
+        EOF
+
+        case "${PLATFORM}" in
+          aws)
+            cat >> "${OUT}" <<EOF
+          aws:
+            region: ${CLOUD_REGION}
+        EOF
+            ;;
+          gcp)
+            cat >> "${OUT}" <<EOF
+          gcp:
+            projectID: ${GCP_PROJECT}
+            region: ${CLOUD_REGION}
+        EOF
+            ;;
+          azure)
+            cat >> "${OUT}" <<EOF
+          azure:
+            baseDomainResourceGroupName: ${AZ_RG}
+            cloudName: AzurePublicCloud
+            region: ${CLOUD_REGION}
+        EOF
+            ;;
+        esac
+
+        if [ -n "${SSH_KEY}" ]; then
+          printf '\nsshKey: |-\n' >> "${OUT}"
+          printf '%s\n' "${SSH_KEY}" | sed 's/^/  /' >> "${OUT}"
+        fi
 
         echo "Generated install-config for ${CLUSTER_NAME}:"
         cat "${OUT}"

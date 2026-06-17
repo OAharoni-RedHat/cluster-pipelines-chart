@@ -8,16 +8,9 @@
         "app" $app
       ) | fromJson }}
   {{- range $platformName, $_ := $platforms }}
-    {{- $poolProfile := include "tekton.poolProfile" (dict
-          "root" $
-          "app" $app
-          "platformName" $platformName
-        ) }}
     {{- $ocpVersions := include "tekton.supportedOcpVersions" (dict
           "root" $
           "app" $app
-          "platformName" $platformName
-          "poolProfile" $poolProfile
         ) | fromJson }}
     {{- range $ocpVersion, $_ := $ocpVersions }}
       {{- range $flavorName, $_ := $flavors }}
