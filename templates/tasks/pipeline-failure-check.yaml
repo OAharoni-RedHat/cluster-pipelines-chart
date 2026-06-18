@@ -12,7 +12,7 @@ spec:
       type: string
   steps:
     - name: check
-      image: quay.io/validatedpatterns/utility-container
+      image: {{ .Values.pipelines.defaults.utilityContainerImg }}
       script: |
         #!/usr/bin/env bash
         if [ "$(params.aggregateTasksStatus)" = "Failed" ]; then

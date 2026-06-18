@@ -10,7 +10,7 @@ spec:
 
   steps:
     - name: upload-must-gathers
-      image: quay.io/validatedpatterns/utility-container
+      image: {{ .Values.pipelines.defaults.utilityContainerImg }}
       script: |
         #!/usr/bin/env bash
         # TODO: upload must-gather archive
