@@ -9,7 +9,7 @@ HCP flavor: HyperShift hosted cluster (after metadata validation).
     name: provision-hosted-cluster
   params:
     - name: application
-      value: {{ .appName | quote }}
+      value: {{ .patternName | quote }}
     - name: platform
       value: {{ .platformName | quote }}
     - name: ocpVersion
@@ -30,5 +30,5 @@ HCP flavor: HyperShift hosted cluster (after metadata validation).
     name: destroy-hosted-cluster
   params:
     - name: application
-      value: {{ .appName | quote }}
+      value: {{ .patternName | quote }}
 {{- end }}

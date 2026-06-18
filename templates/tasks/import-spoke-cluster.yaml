@@ -8,10 +8,6 @@ metadata:
 spec:
   description: Import the spoke cluster into ACM on the hub after pattern install
   params:
-    - name: application
-      type: string
-    - name: platform
-      type: string
   workspaces:
     - name: kubeconfig
   steps:
@@ -21,4 +17,4 @@ spec:
         #!/usr/bin/env bash
         set -euo pipefail
         # TODO: import spoke as ManagedCluster on hub (klusterlet addon / import secret)
-        echo "TODO: import spoke cluster for $(params.application) on $(params.platform)"
+        echo "TODO: import spoke cluster for"

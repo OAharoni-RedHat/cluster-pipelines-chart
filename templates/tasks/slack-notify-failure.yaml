@@ -8,14 +8,10 @@ metadata:
 spec:
   description: Notify Slack when a pipeline run fails
   params:
-    - name: application
-      type: string
-    - name: flavor
-      type: string
   steps:
     - name: slack-notify
       image: quay.io/validatedpatterns/utility-container
       script: |
         #!/usr/bin/env bash
         # TODO: Slack notification on failure
-        echo "Pipeline failed for $(params.application) ($(params.flavor))"
+        echo "Pipeline failed"

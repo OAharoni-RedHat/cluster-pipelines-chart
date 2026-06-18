@@ -29,8 +29,6 @@ Checkout, metadata validation, and sizing (always first).
   taskRef:
     name: validate-pattern-metadata
   params:
-    - name: application
-      value: {{ .appName | quote }}
     - name: platform
       value: {{ .platformName | quote }}
     - name: flavor
@@ -48,7 +46,7 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
 - name: install-pattern
   onError: continue
   runAfter:
-    {{- if eq .flavorName "hub" }}
+    {{- if eq .flavorName "standalone" }}
     - provision-cluster
     {{- else if eq .flavorName "hub-spoke" }}
     - provision-hub
@@ -73,10 +71,6 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
   taskRef:
     name: import-spoke-cluster
   params:
-    - name: application
-      value: {{ .appName | quote }}
-    - name: platform
-      value: {{ .platformName | quote }}
   workspaces:
     - name: kubeconfig
       workspace: shared-data
@@ -119,8 +113,6 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
   taskRef:
     name: upload-test-results
   params:
-    - name: application
-      value: {{ .appName | quote }}
 - name: must-gather
   runAfter:
     - install-pattern
@@ -130,8 +122,6 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
   taskRef:
     name: must-gather
   params:
-    - name: application
-      value: {{ .appName | quote }}
 - name: upload-must-gather
   runAfter:
     - must-gather
@@ -140,8 +130,6 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
   taskRef:
     name: upload-must-gather
   params:
-    - name: application
-      value: {{ .appName | quote }}
 {{- end }}
 
 {{/*
@@ -156,10 +144,6 @@ Shared finally tasks (not flavor-specific cleanup).
   taskRef:
     name: slack-notify-failure
   params:
-    - name: application
-      value: {{ .appName | quote }}
-    - name: flavor
-      value: {{ .flavorName | quote }}
 - name: pipeline-failure-check
   taskRef:
     name: pipeline-failure-check

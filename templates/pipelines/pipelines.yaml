@@ -1,4 +1,4 @@
-{{- range $appName, $app := .Values.pipelines.patterns }}
+{{- range $patternName, $app := .Values.pipelines.patterns }}
   {{- $platforms := include "tekton.supportedPlatforms" (dict
         "root" $
         "app" $app
@@ -17,7 +17,7 @@
         {{- $ctx := dict
               "root" $
               "app" $app
-              "appName" $appName
+              "patternName" $patternName
               "platformName" $platformName
               "ocpVersion" $ocpVersion
               "flavorName" $flavorName
@@ -29,16 +29,16 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: {{ printf "%s-%s-%s-%s" $appName $platformName ($ocpVersion | replace "." "-") $flavorName }}
+  name: {{ printf "%s-%s-%s-%s" $patternName $platformName ($ocpVersion | replace "." "-") $flavorName }}
   namespace: {{ $.Values.pipelineNamespace }}
   labels:
-    pattern.application: {{ $appName }}
+    pattern.name: {{ $patternName }}
     pattern.platform: {{ $platformName }}
     pattern.ocp-version: {{ $ocpVersion | replace "." "-" }}
     pattern.flavor: {{ $flavorName }}
 spec:
   description: >
-    Pattern test pipeline for {{ $appName }} on {{ $platformName }} (OCP {{ $ocpVersion }}, {{ $flavorName }}).
+    Pattern test pipeline for {{ $patternName }} on {{ $platformName }} (OCP {{ $ocpVersion }}, {{ $flavorName }}).
     Checkout and validate metadata, provision, install, test, cleanup.
   params:
     - name: pattern-repo-url

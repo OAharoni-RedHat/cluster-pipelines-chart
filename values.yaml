@@ -61,7 +61,7 @@ pipelines:
       - "4.20"
       - "4.21"
     flavors:
-      - hub # This will be a hive made regular single cluster
+      - standalone # This will be a hive made regular single cluster
       - hub-spoke  # This will be a hive made regular hub and spoke cluster
       - hcp # this will be just a single hub cluster setup with hcp hosted clusters
     networking:
@@ -73,7 +73,7 @@ pipelines:
         - cidr: 10.0.0.0/16
       serviceNetwork:
         - 172.30.0.0/16
-
+    mustGatherImg: quay.io/hybridcloudpatterns/must-gather
   # Short OCP version (e.g. "4.21") -> ClusterImageSet name on the hub
   imageSets:
     "4.18": img4.18.12-x86-64-appsub
@@ -86,12 +86,12 @@ pipelines:
       repo: https://github.com/darkdoc/multicloud-gitops.git
       revision: pipeline_test
 
-    # ansible-edge:
-    #   repo: https://github.com/validatedpatterns/ansible-edge-gitops.git
-    #   platforms: #if empty, or unset it will be the defaults.platforms
-    #     aws: {}
-    #   flavors: #if empty, or unset it will be the default
-    #     - hub
+    ansible-edge:
+      repo: https://github.com/validatedpatterns/ansible-edge-gitops.git
+      platforms: #if empty, or unset it will be the defaults.platforms
+        aws: {}
+      flavors: #if empty, or unset it will be the default
+        - standalone
 
     # industrial-edge:
     #   repo: https://github.com/validatedpatterns/industrial-edge.git
@@ -101,7 +101,7 @@ pipelines:
     # medical-diag:
     #   repo: https://github.com/validatedpatterns/medical-diagnosis.git
     #   flavors:
-    #     - hub
+    #     - standalone
 
     # # These are the tested tier
     # layered-zero:
@@ -112,4 +112,4 @@ pipelines:
     #   platforms:
     #     aws: {}
     #   flavors:
-    #     hub: {}
+    #     standalone: {}

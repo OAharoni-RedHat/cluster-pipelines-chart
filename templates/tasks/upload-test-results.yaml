@@ -8,12 +8,10 @@ metadata:
 spec:
   description: Upload interop test results
   params:
-    - name: application
-      type: string
   steps:
     - name: upload-tests
       image: quay.io/validatedpatterns/utility-container
       script: |
         #!/usr/bin/env bash
         # TODO: upload test results artifact
-        echo "upload test results for $(params.application)"
+        echo "upload test results"

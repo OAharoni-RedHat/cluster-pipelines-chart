@@ -7,13 +7,11 @@ metadata:
     {{- include "pipelines.labels" . | nindent 4 }}
 spec:
   description: Upload must-gather archive
-  params:
-    - name: application
-      type: string
+
   steps:
     - name: upload-must-gathers
       image: quay.io/validatedpatterns/utility-container
       script: |
         #!/usr/bin/env bash
         # TODO: upload must-gather archive
-        echo "upload must-gather for $(params.application)"
+        echo "upload must-gather"

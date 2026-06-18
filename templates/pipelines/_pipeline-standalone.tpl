@@ -1,9 +1,9 @@
 {{/*
-Hub flavor: single cluster (pool claim or Hive deploy, after metadata validation).
+Standalone flavor: single cluster Hive deploy, after metadata validation.
 */}}
-{{- define "pipelines.provision.hub" -}}
+{{- define "pipelines.provision.standalone" -}}
 {{- $params := merge (deepCopy .) (dict
-      "clusterName" (printf "%s-%s" .appName .platformName)
+      "clusterBaseName" (printf "%s" .patternName )
       "clusterRole" "hub"
       "namespace" (printf "%s" .pipelineNamespace)
     ) -}}
@@ -26,12 +26,12 @@ Hub flavor: single cluster (pool claim or Hive deploy, after metadata validation
       subPath: kubeconfig
     - name: install-config
       workspace: shared-data
-      subPath: install-config/{{ $params.clusterName }}
+      subPath: install-config/{{ $params.clusterBaseName }}-hub
 {{- end }}
 
-{{- define "pipelines.cleanup.hub" -}}
+{{- define "pipelines.cleanup.standalone" -}}
 {{- $params := merge (deepCopy .) (dict
-      "clusterName" (printf "%s-%s" .appName .platformName)
+      "clusterBaseName" (printf "%s" .patternName)
       "clusterRole" "hub"
       "namespace" (printf "%s" .pipelineNamespace)
     ) -}}

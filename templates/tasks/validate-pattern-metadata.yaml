@@ -9,8 +9,6 @@ spec:
   description: >
     Validate pattern-metadata.yaml supports the baked platform and flavor for this pipeline.
   params:
-    - name: application
-      type: string
     - name: platform
       type: string
     - name: flavor

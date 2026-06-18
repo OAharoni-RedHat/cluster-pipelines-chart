@@ -9,12 +9,18 @@ spec:
   description: >
     Provision a cluster via Hive deploy.
   params:
-    - name: cluster-name
+    - name: cluster-base-name
       type: string
       default: ""
     - name: namespace
       type: string
       default: {{ .Values.pipelineNamespace }}
+    - name: cluster-role
+      type: string
+      default: hub
+    - name: flavor
+      type: string
+      default: standalone
     - name: platform
       type: string
       default: ""
@@ -57,7 +63,9 @@ spec:
         #!/usr/bin/env bash
         set -euo pipefail
 
-        CLUSTER_NAME="$(params.cluster-name)"
+        VERSION_STRING="$(params.ocp-version)"
+        VERSION_STRING="${VERSION_STRING//./-}"
+        CLUSTER_NAME="$(params.cluster-base-name)-$(params.platform)-${VERSION_STRING}-$(params.cluster-role)-$(params.flavor)"
 
         PLATFORM="$(params.platform)"
 
@@ -67,7 +75,7 @@ spec:
         WORKER_REPLICAS="$(params.compute-nodes-config.replicas)"
         WORKER_TYPE="$(params.compute-nodes-config.type)"
         SSH_KEY="$(params.ssh-public-key)"
-        OUT="$(workspaces.install-config.path)/install-config.yaml"
+        INSTALL_CFG="$(workspaces.install-config.path)/install-config.yaml"
 
 
         case "${PLATFORM}" in
@@ -91,7 +99,7 @@ spec:
 
         mkdir -p "$(workspaces.install-config.path)"
 
-        cat > "${OUT}" <<EOF
+        cat > "${INSTALL_CFG}" <<EOF
         apiVersion: v1
         baseDomain: ${BASE_DOMAIN}
         compute:
@@ -127,20 +135,20 @@ spec:
 
         case "${PLATFORM}" in
           aws)
-            cat >> "${OUT}" <<EOF
+            cat >> "${INSTALL_CFG}" <<EOF
           aws:
             region: ${CLOUD_REGION}
         EOF
             ;;
           gcp)
-            cat >> "${OUT}" <<EOF
+            cat >> "${INSTALL_CFG}" <<EOF
           gcp:
             projectID: ${GCP_PROJECT}
             region: ${CLOUD_REGION}
         EOF
             ;;
           azure)
-            cat >> "${OUT}" <<EOF
+            cat >> "${INSTALL_CFG}" <<EOF
           azure:
             baseDomainResourceGroupName: ${AZ_RG}
             cloudName: AzurePublicCloud
@@ -150,21 +158,60 @@ spec:
         esac
 
         if [ -n "${SSH_KEY}" ]; then
-          printf '\nsshKey: |-\n' >> "${OUT}"
-          printf '%s\n' "${SSH_KEY}" | sed 's/^/  /' >> "${OUT}"
+          printf '\nsshKey: |-\n' >> "${INSTALL_CFG}"
+          printf '%s\n' "${SSH_KEY}" | sed 's/^/  /' >> "${INSTALL_CFG}"
         fi
 
         echo "Generated install-config for ${CLUSTER_NAME}:"
-        cat "${OUT}"
+        cat "${INSTALL_CFG}"
 
-    - name: create-hive-cluster
+    - name: apply-install-config
       image: {{ .Values.toolsImage }}
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
-        # TODO: namespace, externalsecrets, install-config secret, clusterdeployment, wait
-        echo "TODO: apply Hive resources for $(params.cluster-name) in namespace $(params.namespace)"
-        echo "  platform=$(params.platform) ocp-version=$(params.ocp-version)"
-        echo "  timeout=$(params.wait-timeout-minutes)m"
-        echo "  install-config: $(workspaces.install-config.path)/install-config.yaml"
+
+        VERSION_STRING="$(params.ocp-version)"
+        VERSION_STRING="${VERSION_STRING//./-}"
+        CLUSTER_NAME="$(params.cluster-base-name)-$(params.platform)-${VERSION_STRING}-$(params.cluster-role)-$(params.flavor)"
+
+        INSTALL_CFG="$(workspaces.install-config.path)/install-config.yaml"
+
+        oc create secret generic "${CLUSTER_NAME}-install-config" \
+          -n "$(params.namespace)" \
+          --from-file=install-config.yaml="${INSTALL_CFG}" \
+          --dry-run=client -o yaml | oc apply -f -
+
+
+    - name: generate-clusterdeployment
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        echo "TODO: genereate clusterdeployment"
+        exit 1
+
+    - name: apply-clusterdeployment
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        echo "TODO: apply clusterdeployment"
+        exit 1
+
+    - name: wait-clusterdeployment-ready
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        echo "TODO: wait clusterdeployment"
+
+        exit 1
+
+    - name: export-kubeconfig
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        echo "TODO: export kubeconfig"
         exit 1

@@ -3,12 +3,12 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
 */}}
 {{- define "pipelines.provision.hub-spoke" -}}
 {{- $hubParams := merge (deepCopy .) (dict
-      "clusterName" (printf "%s-%s" .appName .platformName)
+      "clusterBaseName" (printf "%s" .patternName)
       "clusterRole" "hub"
       "namespace" (printf "%s" .pipelineNamespace)
     ) -}}
 {{- $spokeParams := merge (deepCopy .) (dict
-      "clusterName" (printf "%s-%s-spoke" .appName .platformName)
+      "clusterBaseName" (printf "%s" .patternName)
       "clusterRole" "spoke"
       "namespace" (printf "%s" .pipelineNamespace)
     ) -}}
@@ -31,7 +31,7 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
       subPath: kubeconfig
     - name: install-config
       workspace: shared-data
-      subPath: install-config/{{ $hubParams.clusterName }}
+      subPath: install-config/{{ $hubParams.clusterBaseName }}-hub
 - name: provision-spoke
   runAfter:
     - validate-pattern-metadata
@@ -51,17 +51,17 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
       subPath: spoke-kubeconfig
     - name: install-config
       workspace: shared-data
-      subPath: install-config/{{ $spokeParams.clusterName }}
+      subPath: install-config/{{ $spokeParams.clusterBaseName }}-spoke
 {{- end }}
 
 {{- define "pipelines.cleanup.hub-spoke" -}}
 {{- $hubParams := merge (deepCopy .) (dict
-      "clusterName" (printf "%s-%s" .appName .platformName)
+      "clusterBaseName" (printf "%s" .patternName)
       "clusterRole" "hub"
       "namespace" (printf "%s" .pipelineNamespace)
     ) -}}
 {{- $spokeParams := merge (deepCopy .) (dict
-      "clusterName" (printf "%s-%s-spoke" .appName .platformName)
+      "clusterBaseName" (printf "%s" .patternName)
       "clusterRole" "spoke"
       "namespace" (printf "%s" .pipelineNamespace)
     ) -}}

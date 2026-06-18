@@ -8,16 +8,21 @@ metadata:
 spec:
   description: Collect must-gather from a failed cluster
   params:
-    - name: application
-      type: string
+  workspaces:
+    - name: kubeconfig
+    - name: must-gather
   results:
     - name: outcome
   steps:
     - name: must-gather
       image: quay.io/validatedpatterns/utility-container
+      env:
+        - name: KUBECONFIG
+          value: $(workspaces.kubeconfig.path)/kubeconfig
       script: |
         #!/usr/bin/env bash
         trap 'echo -n failed > "$(results.outcome.path)"' ERR
         # TODO: collect must-gather from failed cluster
-        echo "must-gather for $(params.application)"
+        DESTDIR= $(workspaces.must-gather.path)/
+        oc adm must-gather --image-stream=openshift/must-gather --image={{ .Values.pipelines.defaults.mustGatherImg }} --dest-dir="${DESTDIR}"
         echo -n success > "$(results.outcome.path)"
