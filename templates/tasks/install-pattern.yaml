@@ -8,6 +8,9 @@ metadata:
 spec:
   description: Install a validated pattern on the target cluster
   params:
+    - name: cluster-name
+      type: string
+      default: ""
   workspaces:
     - name: pattern-repo
     - name: kubeconfig
@@ -18,24 +21,22 @@ spec:
       image: {{ .Values.pipelines.defaults.utilityContainerImg }}
       env:
         - name: KUBECONFIG
-          value: $(workspaces.kubeconfig.path)/kubeconfig
+          value: $(workspaces.kubeconfig.path)/$(params.cluster-name)-kubeconfig
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
-        trap 'echo -n failed > "$(results.outcome.path)"' ERR
-        cd $(workspaces.pattern-repo.path)
+        # This is some workaround for Tekton injecting some KUBERNETES_* env vars
+        unset KUBERNETES_SERVICE_HOST
+        trap 'echo -n failed > $(results.outcome.path)' ERR
 
+        cd $(workspaces.pattern-repo.path)
 
         # This is some workaround for git-clone
         # git config --global --add safe.directory $(workspaces.pattern-repo.path)
         # git checkout -B pipeline_test origin/pipeline_test
 
-
-        # This is some workaround for Tekton injecting some KUBERNETES_* env vars
-        unset KUBERNETES_SERVICE_HOST
-
         # Install the pattern
         ./pattern.sh make install
 
         # If we reach here, everything succeeded
-        echo -n success > "$(results.outcome.path)"
+        echo -n success > $(results.outcome.path)

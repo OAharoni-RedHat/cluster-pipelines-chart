@@ -4,25 +4,15 @@ Checkout, metadata validation, and sizing (always first).
 {{- define "pipelines.tasks.setup" -}}
 - name: checkout-pattern-repo
   taskRef:
-    resolver: cluster
-    params:
-      - name: kind
-        value: task
-      - name: namespace
-        value: openshift-pipelines
-      - name: name
-        value: git-clone
+    name: clone-git-repo
   workspaces:
-    - name: output
+    - name: output-repo
       workspace: shared-data
-      subPath: repo
   params:
     - name: URL
       value: $(params.pattern-repo-url)
     - name: REVISION
       value: $(params.pattern-repo-revision)
-    - name: DEPTH
-      value: "0"
 - name: validate-pattern-metadata
   runAfter:
     - checkout-pattern-repo
@@ -36,7 +26,7 @@ Checkout, metadata validation, and sizing (always first).
   workspaces:
     - name: pattern-repo
       workspace: shared-data
-      subPath: repo
+      subPath: pattern-repo
 {{- end }}
 
 {{/*
@@ -57,10 +47,18 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
   taskRef:
     name: install-pattern
   params:
+    - name: cluster-name
+    {{- if eq .flavorName "standalone" }}
+      value: $(tasks.provision-cluster.results.cluster-name)
+    {{- else if eq .flavorName "hub-spoke" }}
+      value: $(tasks.provision-hub.results.cluster-name)
+    {{- else }}
+      value: $(tasks.provision-hosted-cluster.results.cluster-name)
+    {{- end }}
   workspaces:
     - name: pattern-repo
       workspace: shared-data
-      subPath: repo
+      subPath: pattern-repo
     - name: kubeconfig
       workspace: shared-data
       subPath: kubeconfig
@@ -83,9 +81,6 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     {{- else }}
     - install-pattern
     {{- end }}
-  when:
-    - cel: "'$(tasks.install-pattern.results.outcome)' != 'failed'"
-  onError: continue
   taskRef:
     name: interop-test
   params:
@@ -93,10 +88,24 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
       value: {{ .flavorName | quote }}
     - name: test-edge
       value: {{ if eq .flavorName "hub-spoke" }}"true"{{ else }}"false"{{ end }}
+    - name: cluster-name
+    {{- if eq .flavorName "standalone" }}
+      value: $(tasks.provision-cluster.results.cluster-name)
+    {{- else if eq .flavorName "hub-spoke" }}
+      value: $(tasks.provision-hub.results.cluster-name)
+    {{- else }}
+      value: $(tasks.provision-hosted-cluster.results.cluster-name)
+    {{- end }}
+    - name: install-status
+    {{- if eq .flavorName "hub-spoke" }}
+      value: $(tasks.import-spoke.results.import-status)
+    {{- else }}
+      value: $(tasks.install-pattern.results.outcome)
+    {{- end }}
   workspaces:
     - name: pattern-repo
       workspace: shared-data
-      subPath: repo
+      subPath: pattern-repo
     - name: kubeconfig
       workspace: shared-data
       subPath: kubeconfig
@@ -115,13 +124,27 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
   params:
 - name: must-gather
   runAfter:
-    - install-pattern
     - interop-test
   when:
     - cel: "'$(tasks.install-pattern.results.outcome)' == 'failed' || '$(tasks.interop-test.results.outcome)' == 'failed'"
   taskRef:
     name: must-gather
   params:
+    - name: cluster-name
+    {{- if eq .flavorName "standalone" }}
+      value: $(tasks.provision-cluster.results.cluster-name)
+    {{- else if eq .flavorName "hub-spoke" }}
+      value: $(tasks.provision-hub.results.cluster-name)
+    {{- else }}
+      value: $(tasks.provision-hosted-cluster.results.cluster-name)
+    {{- end }}
+  workspaces:
+    - name: kubeconfig
+      workspace: shared-data
+      subPath: kubeconfig
+    - name: must-gather
+      workspace: shared-data
+      subPath: must-gather
 - name: upload-must-gather
   runAfter:
     - must-gather
