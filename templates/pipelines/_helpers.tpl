@@ -1,7 +1,5 @@
 {{/*
 Resolve supported flavors for a pattern.
-
-Like supportedPlatforms, the result is always a map keyed by flavor name.
 Pattern-level flavors may be a map (hub: {}) or a list ([hub, hub-spoke]).
 When unset, defaults.flavors (a list) is converted to the same map shape.
 */}}
@@ -54,20 +52,6 @@ Priority:
   {{- include "tekton.versionsToMap" $app.ocp_versions -}}
 {{- else -}}
   {{- include "tekton.versionsToMap" $root.Values.pipelines.defaults.ocp_versions -}}
-{{- end -}}
-{{- end }}
-
-{{/*
-ClusterImageSet name for a short OCP version.
-*/}}
-{{- define "tekton.imageSetRef" -}}
-{{- $root := .root -}}
-{{- $version := .version -}}
-{{- $imageSets := default dict $root.Values.pipelines.imageSets -}}
-{{- if hasKey $imageSets $version -}}
-  {{- index $imageSets $version -}}
-{{- else -}}
-  {{- printf "img%s.0-x86-64-appsub" $version -}}
 {{- end -}}
 {{- end }}
 

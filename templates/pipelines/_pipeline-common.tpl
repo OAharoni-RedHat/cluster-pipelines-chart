@@ -47,13 +47,19 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
   taskRef:
     name: install-pattern
   params:
-    - name: cluster-name
     {{- if eq .flavorName "standalone" }}
+    - name: cluster-name
       value: $(tasks.provision-cluster.results.cluster-name)
+    - name: target-clustergroup
+      value: standalone
     {{- else if eq .flavorName "hub-spoke" }}
+    - name: cluster-name
       value: $(tasks.provision-hub.results.cluster-name)
     {{- else }}
+    - name: cluster-name
       value: $(tasks.provision-hosted-cluster.results.cluster-name)
+    - name: target-clustergroup
+      value: standalone
     {{- end }}
   workspaces:
     - name: pattern-repo
@@ -64,17 +70,28 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
       subPath: kubeconfig
 {{- if eq .flavorName "hub-spoke" }}
 - name: import-spoke
+  onError: continue
   runAfter:
     - install-pattern
   taskRef:
     name: import-spoke-cluster
   params:
+    - name: install-status
+      value: $(tasks.install-pattern.results.outcome)
+    - name: hub-cluster-name
+      value: $(tasks.provision-hub.results.cluster-name)
+    - name: spoke-cluster-name
+      value: $(tasks.provision-spoke.results.cluster-name)
   workspaces:
+    - name: pattern-repo
+      workspace: shared-data
+      subPath: pattern-repo
     - name: kubeconfig
       workspace: shared-data
       subPath: kubeconfig
 {{- end }}
 - name: interop-test
+  onError: continue
   runAfter:
     {{- if eq .flavorName "hub-spoke" }}
     - import-spoke
@@ -88,12 +105,18 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
       value: {{ .flavorName | quote }}
     - name: test-edge
       value: {{ if eq .flavorName "hub-spoke" }}"true"{{ else }}"false"{{ end }}
-    - name: cluster-name
     {{- if eq .flavorName "standalone" }}
+    - name: hub-cluster-name
       value: $(tasks.provision-cluster.results.cluster-name)
+    - name: target-clustergroup
+      value: standalone
     {{- else if eq .flavorName "hub-spoke" }}
+    - name: hub-cluster-name
       value: $(tasks.provision-hub.results.cluster-name)
+    - name: spoke-cluster-name
+      value: $(tasks.provision-spoke.results.cluster-name)
     {{- else }}
+    - name: hub-cluster-name
       value: $(tasks.provision-hosted-cluster.results.cluster-name)
     {{- end }}
     - name: install-status
@@ -102,6 +125,8 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     {{- else }}
       value: $(tasks.install-pattern.results.outcome)
     {{- end }}
+    - name: platform
+      value: {{ .platformName | quote }}
   workspaces:
     - name: pattern-repo
       workspace: shared-data
@@ -122,7 +147,7 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
   taskRef:
     name: upload-test-results
   params:
-- name: must-gather
+- name: must-gather-hub
   runAfter:
     - interop-test
   when:
@@ -145,11 +170,36 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     - name: must-gather
       workspace: shared-data
       subPath: must-gather
+{{- if eq .flavorName "hub-spoke" }}
+- name: must-gather-spoke
+  runAfter:
+    - interop-test
+  when:
+    - cel: "'$(tasks.install-pattern.results.outcome)' == 'failed' || '$(tasks.interop-test.results.outcome)' == 'failed'"
+  taskRef:
+    name: must-gather
+  params:
+    - name: cluster-name
+      value: $(tasks.provision-spoke.results.cluster-name)
+  workspaces:
+    - name: kubeconfig
+      workspace: shared-data
+      subPath: kubeconfig
+    - name: must-gather
+      workspace: shared-data
+      subPath: must-gather
+{{- end }}
 - name: upload-must-gather
   runAfter:
-    - must-gather
+    - must-gather-hub
+{{- if eq .flavorName "hub-spoke" }}
+    - must-gather-spoke
+{{- end }}
   when:
-    - cel: "'$(tasks.must-gather.results.outcome)' == 'success'"
+    - cel: "'$(tasks.must-gather-hub.results.outcome)' == 'success'"
+{{- if eq .flavorName "hub-spoke" }}
+    - cel: "'$(tasks.must-gather-spoke.results.outcome)' == 'success'"
+{{- end }}
   taskRef:
     name: upload-must-gather
   params:

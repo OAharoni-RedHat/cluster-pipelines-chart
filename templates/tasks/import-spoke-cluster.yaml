@@ -8,13 +8,46 @@ metadata:
 spec:
   description: Import the spoke cluster into ACM on the hub after pattern install
   params:
+    - name: install-status
+      type: string
+      default: "success"
+    - name: hub-cluster-name
+      type: string
+      default: ""
+    - name: spoke-cluster-name
+      type: string
+      default: "success"
   workspaces:
+    - name: pattern-repo
     - name: kubeconfig
+  results:
+    - name: import-status
   steps:
     - name: import-spoke
-      image: {{ .Values.toolsImage }}
+      image: {{ .Values.pipelines.defaults.utilityContainerImg }}
+      env:
+        - name: HUBCONFIG
+          value: $(workspaces.kubeconfig.path)/$(params.hub-cluster-name)-kubeconfig
+        - name: SPOKECONFIG
+          value: $(workspaces.kubeconfig.path)/$(params.spoke-cluster-name)-kubeconfig
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
-        # TODO: import spoke as ManagedCluster on hub (klusterlet addon / import secret)
-        echo "TODO: import spoke cluster for"
+        # This is some workaround for Tekton injecting some KUBERNETES_* env vars
+        unset KUBERNETES_SERVICE_HOST
+        trap 'echo -n "failed" > $(results.import-status.path)' ERR
+
+
+        INSTALL_STATUS="$(params.install-status)"
+        if [ "$INSTALL_STATUS" != "success" ]; then
+          echo "Skipping spoke import due to failed install"
+          echo -n "skipped" > $(results.import-status.path)
+          exit 0
+        fi
+      
+        cd $(workspaces.pattern-repo.path)
+
+        ./pattern.sh make import-default-spoke
+
+        # If we reach here, everything succeeded
+        echo -n success > "$(results.import-status.path)"

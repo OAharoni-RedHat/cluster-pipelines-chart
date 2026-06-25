@@ -8,6 +8,9 @@ metadata:
 spec:
   description: Collect must-gather from a failed cluster
   params:
+    - name: cluster-name
+      type: string
+      default: ""
   workspaces:
     - name: kubeconfig
     - name: must-gather
@@ -18,11 +21,11 @@ spec:
       image: {{ .Values.pipelines.defaults.utilityContainerImg }}
       env:
         - name: KUBECONFIG
-          value: $(workspaces.kubeconfig.path)/kubeconfig
+          value: $(workspaces.kubeconfig.path)/$(params.cluster-name)-kubeconfig
       script: |
         #!/usr/bin/env bash
         trap 'echo -n failed > "$(results.outcome.path)"' ERR
         # TODO: collect must-gather from failed cluster
-        DESTDIR= $(workspaces.must-gather.path)/
+        DESTDIR= $(workspaces.must-gather.path)/$(params.cluster-name)
         oc adm must-gather --image-stream=openshift/must-gather --image={{ .Values.pipelines.defaults.mustGatherImg }} --dest-dir="${DESTDIR}"
         echo -n success > "$(results.outcome.path)"

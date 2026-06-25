@@ -30,11 +30,6 @@ Standalone flavor: single cluster Hive deploy, after metadata validation.
 {{- end }}
 
 {{- define "pipelines.cleanup.standalone" -}}
-{{- $params := merge (deepCopy .) (dict
-      "clusterBaseName" (printf "%s" .patternName)
-      "clusterRole" "hub"
-      "namespace" (printf "%s" .pipelineNamespace)
-    ) -}}
 - name: delete-cluster-if-succeeded
   when:
     - input: $(tasks.status)
@@ -43,5 +38,7 @@ Standalone flavor: single cluster Hive deploy, after metadata validation.
   taskRef:
     name: delete-cluster
   params:
-{{ include "pipelines.provision.cluster.hive.params" $params | nindent 4 }}
+   - name: cluster-name
+     value: $(tasks.provision-cluster.results.cluster-name)
 {{- end }}
+

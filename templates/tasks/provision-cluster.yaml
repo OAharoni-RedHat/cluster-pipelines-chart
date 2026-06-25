@@ -52,10 +52,13 @@ spec:
           type: string
           default: ""
 
+  results:
+    - name: cluster-name
+      description: The name of the cluster created
   workspaces:
     - name: kubeconfig
     - name: install-config
-      description: Holds generated install-config.yaml
+      description: Holds generated install-config.yaml and clusterdeployment.yaml
   steps:
     - name: generate-install-config
       image: {{ .Values.toolsImage }}
@@ -66,7 +69,7 @@ spec:
         VERSION_STRING="$(params.ocp-version)"
         VERSION_STRING="${VERSION_STRING//./-}"
         CLUSTER_NAME="$(params.cluster-base-name)-$(params.platform)-${VERSION_STRING}-$(params.cluster-role)-$(params.flavor)"
-
+        echo -n ${CLUSTER_NAME} > $(results.cluster-name.path)
         PLATFORM="$(params.platform)"
 
         CP_REPLICAS="$(params.control-plane-config.replicas)"
@@ -188,30 +191,186 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
-        echo "TODO: genereate clusterdeployment"
-        exit 1
+
+        VERSION_STRING="$(params.ocp-version)"
+        VERSION_STRING="${VERSION_STRING//./-}"
+        CLUSTER_NAME="$(params.cluster-base-name)-$(params.platform)-${VERSION_STRING}-$(params.cluster-role)-$(params.flavor)"
+        NAMESPACE="$(params.namespace)"
+        PLATFORM="$(params.platform)"
+        OCP_VERSION="$(params.ocp-version)"
+        OUT="$(workspaces.install-config.path)/clusterdeployment.yaml"
+
+        case "${PLATFORM}" in
+        {{- range $name, $cfg := .Values.pipelines.defaults.platforms }}
+          {{ $name }})
+            BASE_DOMAIN={{ $cfg.baseDomain | quote }}
+            CLOUD_REGION={{ $cfg.region | quote }}
+            {{- if eq $name "azure" }}
+            AZ_RG={{ default "" $cfg.resourceGroup | quote }}
+            {{- end }}
+            ;;
+        {{- end }}
+          *)
+            echo "unsupported platform: ${PLATFORM}" >&2
+            exit 1
+            ;;
+        esac
+
+        case "${OCP_VERSION}" in
+        {{- range $ver, $img := .Values.pipelines.imageSets }}
+          {{ $ver }})
+            IMAGE_SET={{ $img | quote }}
+            ;;
+        {{- end }}
+          *)
+            echo "unsupported ocp-version: ${OCP_VERSION}" >&2
+            exit 1
+            ;;
+        esac
+
+        case "${PLATFORM}" in
+          aws) CLOUD_LABEL="AWS" ;;
+          gcp) CLOUD_LABEL="GCP" ;;
+          azure) CLOUD_LABEL="Azure" ;;
+        esac
+
+        cat > "${OUT}" <<EOF
+        apiVersion: hive.openshift.io/v1
+        kind: ClusterDeployment
+        metadata:
+          name: ${CLUSTER_NAME}
+          namespace: ${NAMESPACE}
+          labels:
+            cloud: ${CLOUD_LABEL}
+            region: ${CLOUD_REGION}
+            vendor: OpenShift
+            cluster.open-cluster-management.io/clusterset: default
+          annotations:
+            hive.openshift.io/delete-after: "8h"
+        spec:
+          clusterName: ${CLUSTER_NAME}
+          baseDomain: ${BASE_DOMAIN}
+          installAttemptsLimit: 1
+          provisioning:
+            installConfigSecretRef:
+              name: ${CLUSTER_NAME}-install-config
+            imageSetRef:
+              name: ${IMAGE_SET}
+          pullSecretRef:
+            name: global-pullsecret
+          platform:
+        EOF
+
+        case "${PLATFORM}" in
+          aws)
+            cat >> "${OUT}" <<EOF
+            aws:
+              credentialsSecretRef:
+                name: aws-creds
+              region: ${CLOUD_REGION}
+        EOF
+            ;;
+          gcp)
+            cat >> "${OUT}" <<EOF
+            gcp:
+              credentialsSecretRef:
+                name: gcp-creds
+        EOF
+            ;;
+          azure)
+            cat >> "${OUT}" <<EOF
+            azure:
+              credentialsSecretRef:
+                name: azure-creds
+              baseDomainResourceGroupName: ${AZ_RG}
+              cloudName: AzurePublicCloud
+        EOF
+            ;;
+        esac
+
+        echo "Generated ClusterDeployment ${CLUSTER_NAME}:"
+        cat "${OUT}"
 
     - name: apply-clusterdeployment
       image: {{ .Values.toolsImage }}
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
-        echo "TODO: apply clusterdeployment"
-        exit 1
+
+        OUT="$(workspaces.install-config.path)/clusterdeployment.yaml"
+
+        if [ ! -f "${OUT}" ]; then
+          echo "missing ClusterDeployment manifest: ${OUT}" >&2
+          exit 1
+        fi
+        cat "${OUT}"
+
+        oc apply -f "${OUT}"
 
     - name: wait-clusterdeployment-ready
       image: {{ .Values.toolsImage }}
       script: |
-        #!/usr/bin/env bash
+        #!/bin/bash
         set -euo pipefail
-        echo "TODO: wait clusterdeployment"
 
-        exit 1
+
+        CLUSTER_NAME=$(cat $(results.cluster-name.path))
+        TIMEOUT=$(params.wait-timeout-minutes)
+        TIMEOUT_SECS=$((TIMEOUT * 60))
+
+        echo "Waiting up to ${TIMEOUT}m for ClusterDeployment ${CLUSTER_NAME} to be provisioned..."
+
+        oc wait clusterdeployment/"${CLUSTER_NAME}" \
+          -n "$(params.namespace)" \
+          --for=condition=Ready=True \
+          --timeout="${TIMEOUT_SECS}s"
+
+        echo "Cluster provisioned successfully"
 
     - name: export-kubeconfig
       image: {{ .Values.toolsImage }}
       script: |
-        #!/usr/bin/env bash
+        #!/bin/bash
         set -euo pipefail
-        echo "TODO: export kubeconfig"
-        exit 1
+
+        # Extract admin kubeconfig
+        CLUSTER_NAME=$(cat $(results.cluster-name.path))
+
+        KUBECONFIG_SECRET=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "$(params.namespace)" \
+          -o jsonpath='{.spec.clusterMetadata.adminKubeconfigSecretRef.name}' 2>/dev/null || echo "")
+
+        if [ -z "$KUBECONFIG_SECRET" ]; then
+          KUBECONFIG_SECRET="${CLUSTER_NAME}-0-admin-kubeconfig"
+        fi
+
+        echo "Extracting kubeconfig from secret ${KUBECONFIG_SECRET}"
+        oc get secret "${KUBECONFIG_SECRET}" \
+          -n "$(params.namespace)" \
+          -o jsonpath='{.data.kubeconfig}' | base64 -d > $(workspaces.kubeconfig.path)/${CLUSTER_NAME}-kubeconfig
+
+        # Extract admin password if available
+        PASSWORD_SECRET=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "$(params.namespace)" \
+          -o jsonpath='{.spec.clusterMetadata.adminPasswordSecretRef.name}' 2>/dev/null || echo "")
+
+        if [ -n "$PASSWORD_SECRET" ]; then
+          oc get secret "${PASSWORD_SECRET}" \
+          -n "$(params.namespace)" \
+          -o jsonpath='{.data.password}' | base64 -d > $(workspaces.kubeconfig.path)/${CLUSTER_NAME}-admin-password 2>/dev/null || true
+        fi
+
+        # Print cluster info
+        API_URL=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "$(params.namespace)" \
+          -o jsonpath='{.status.apiURL}' 2>/dev/null || echo "pending")
+        CONSOLE_URL=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "$(params.namespace)" \
+          -o jsonpath='{.status.webConsoleURL}' 2>/dev/null || echo "pending")
+
+        echo "============================================"
+        echo "Cluster: ${CLUSTER_NAME}"
+        echo "API URL: ${API_URL}"
+        echo "Console: ${CONSOLE_URL}"
+        echo "Kubeconfig: $(workspaces.kubeconfig.path)/${CLUSTER_NAME}-kubeconfig"
+        echo "============================================"

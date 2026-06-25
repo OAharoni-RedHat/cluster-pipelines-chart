@@ -12,25 +12,13 @@ spec:
     - name: cluster-name
       type: string
       default: ""
-    - name: application
-      type: string
-      default: ""
-    - name: platform
-      type: string
-      default: ""
     - name: namespace
       type: string
-      default: ""
-    - name: cluster-role
-      type: string
-      default: "hub"
+      default: {{ .Values.pipelineNamespace }}
   steps:
     - name: delete-hive-cluster
       image: {{ .Values.toolsImage }}
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
-        # TODO: wire destroy-hive tasks (clusterdeployment delete, namespace cleanup, etc.)
-        echo "TODO: delete Hive cluster $(params.cluster-name)"
-        echo "  application=$(params.application) platform=$(params.platform) role=$(params.cluster-role)"
-        echo "  namespace=$(params.namespace)"
+        oc delete -n $(params.namespace) clusterdeployment/$(params.cluster-name)

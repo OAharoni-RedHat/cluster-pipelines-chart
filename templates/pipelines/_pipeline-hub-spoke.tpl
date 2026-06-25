@@ -48,23 +48,13 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
   workspaces:
     - name: kubeconfig
       workspace: shared-data
-      subPath: spoke-kubeconfig
+      subPath: kubeconfig
     - name: install-config
       workspace: shared-data
       subPath: install-config/{{ $spokeParams.clusterBaseName }}-spoke
 {{- end }}
 
 {{- define "pipelines.cleanup.hub-spoke" -}}
-{{- $hubParams := merge (deepCopy .) (dict
-      "clusterBaseName" (printf "%s" .patternName)
-      "clusterRole" "hub"
-      "namespace" (printf "%s" .pipelineNamespace)
-    ) -}}
-{{- $spokeParams := merge (deepCopy .) (dict
-      "clusterBaseName" (printf "%s" .patternName)
-      "clusterRole" "spoke"
-      "namespace" (printf "%s" .pipelineNamespace)
-    ) -}}
 - name: delete-spoke-if-succeeded
   when:
     - input: $(tasks.status)
@@ -73,7 +63,8 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
   taskRef:
     name: delete-cluster
   params:
-{{ include "pipelines.provision.cluster.hive.params" $spokeParams | nindent 4 }}
+    - name: cluster-name
+      value: $(tasks.provision-spoke.results.cluster-name)
 - name: delete-hub-if-succeeded
   when:
     - input: $(tasks.status)
@@ -82,5 +73,6 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
   taskRef:
     name: delete-cluster
   params:
-{{ include "pipelines.provision.cluster.hive.params" $hubParams | nindent 4 }}
+    - name: cluster-name
+      value: $(tasks.provision-hub.results.cluster-name)
 {{- end }}

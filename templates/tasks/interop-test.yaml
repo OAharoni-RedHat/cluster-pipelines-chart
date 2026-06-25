@@ -13,6 +13,21 @@ spec:
     - name: test-edge
       type: string
       default: "false"
+    - name: hub-cluster-name
+      type: string
+      default: ""
+    - name: spoke-cluster-name
+      type: string
+      default: ""
+    - name: install-status
+      type: string
+      default: "success"
+    - name: platform
+      type: string
+      default: ""
+    - name: target-clustergroup
+      type: string
+      default: hub
   workspaces:
     - name: pattern-repo
     - name: kubeconfig
@@ -23,29 +38,32 @@ spec:
     - name: run-interop-pattern-test
       image: {{ .Values.pipelines.defaults.utilityContainerImg }}
       env:
-        - name: KUBECONFIG
-          value: $(workspaces.kubeconfig.path)/kubeconfig
+        - name: HUBCONFIG
+          value: $(workspaces.kubeconfig.path)/$(params.hub-cluster-name)-kubeconfig
+        - name: SPOKECONFIG
+          value: $(workspaces.kubeconfig.path)/$(params.spoke-cluster-name)-kubeconfig
+        - name: INFRA_PROVIDER
+          value: $(params.platform)
+        - name: WORKSPACE
+          value: $(workspaces.test-results.path)
+        - name: TARGET_CLUSTERGROUP
+          value: $(params.target-clustergroup)
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
-        trap 'echo -n failed > "$(results.outcome.path)"' ERR
 
+        INSTALL_STATUS=$(params.install-status)
 
-        echo "Running interop pattern test..."
-        echo "Mock green interop tests..."
-        echo -n success > "$(results.outcome.path)"
-        exit 0
-        
-        # git config --global --add safe.directory $(workspaces.pattern-repo.path)
+        if [ "$INSTALL_STATUS" != "success" ]; then
+          echo "Skipping interop test due to failed install/import"
+          echo -n "skipped" > $(results.outcome.path)
+          exit 0
+        fi
 
-        cd $(workspaces.pattern-repo.path)/tests/interop/
+        trap 'echo -n "failed" > $(results.outcome.path)' ERR
+        cd $(workspaces.pattern-repo.path)
 
-        pip install -r requirements.txt
-
-        INFRA_PROVIDER=AWS \
-        TEST_EDGE=false \
-        WORKSPACE=$(workspaces.test-results.path) \
-        ./run_tests.sh
+        ./pattern.sh make run-ci-tests
 
         # If we reach here, everything succeeded
         echo -n success > "$(results.outcome.path)"

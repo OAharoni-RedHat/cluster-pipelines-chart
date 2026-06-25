@@ -11,6 +11,9 @@ spec:
     - name: cluster-name
       type: string
       default: ""
+    - name: target-clustergroup
+      type: string
+      default: hub
   workspaces:
     - name: pattern-repo
     - name: kubeconfig
@@ -22,6 +25,8 @@ spec:
       env:
         - name: KUBECONFIG
           value: $(workspaces.kubeconfig.path)/$(params.cluster-name)-kubeconfig
+        - name: TARGET_CLUSTERGROUP
+          value: $(params.target-clustergroup)
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
@@ -31,11 +36,8 @@ spec:
 
         cd $(workspaces.pattern-repo.path)
 
-        # This is some workaround for git-clone
-        # git config --global --add safe.directory $(workspaces.pattern-repo.path)
-        # git checkout -B pipeline_test origin/pipeline_test
-
         # Install the pattern
+
         ./pattern.sh make install
 
         # If we reach here, everything succeeded
