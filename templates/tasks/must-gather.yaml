@@ -24,8 +24,10 @@ spec:
           value: $(workspaces.kubeconfig.path)/$(params.cluster-name)-kubeconfig
       script: |
         #!/usr/bin/env bash
+        set -euo pipefail
+
         trap 'echo -n failed > "$(results.outcome.path)"' ERR
-        # TODO: collect must-gather from failed cluster
-        DESTDIR= $(workspaces.must-gather.path)/$(params.cluster-name)
+
+        DESTDIR=$(workspaces.must-gather.path)/$(params.cluster-name)
         oc adm must-gather --image-stream=openshift/must-gather --image={{ .Values.pipelines.defaults.mustGatherImg }} --dest-dir="${DESTDIR}"
         echo -n success > "$(results.outcome.path)"

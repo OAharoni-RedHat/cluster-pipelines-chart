@@ -35,6 +35,9 @@ Standalone flavor: single cluster Hive deploy, after metadata validation.
     - input: $(tasks.status)
       operator: in
       values: ["Completed"]
+    - input: "$(params.force-skip-cleanup)"
+      operator: in
+      values: ["false"]
   taskRef:
     name: delete-cluster
   params:

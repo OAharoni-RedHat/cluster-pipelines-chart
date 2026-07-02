@@ -49,6 +49,10 @@ spec:
       type: string
       description: Git revision (branch, tag, or SHA)
       default: {{ default "main" $app.revision | quote }}
+    - name: force-skip-cleanup
+      type: string
+      description: Skip cluster cleanup, even if everything is green
+      default: false
   workspaces:
     - name: shared-data
   tasks:

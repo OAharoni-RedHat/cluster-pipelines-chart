@@ -8,11 +8,6 @@ metadata:
 spec:
   description: Run pattern interop tests
   params:
-    - name: flavor
-      type: string
-    - name: test-edge
-      type: string
-      default: "false"
     - name: hub-cluster-name
       type: string
       default: ""
@@ -22,16 +17,12 @@ spec:
     - name: install-status
       type: string
       default: "success"
-    - name: platform
-      type: string
-      default: ""
     - name: target-clustergroup
       type: string
       default: hub
   workspaces:
     - name: pattern-repo
     - name: kubeconfig
-    - name: test-results
   results:
     - name: outcome
   steps:
@@ -42,10 +33,6 @@ spec:
           value: $(workspaces.kubeconfig.path)/$(params.hub-cluster-name)-kubeconfig
         - name: SPOKECONFIG
           value: $(workspaces.kubeconfig.path)/$(params.spoke-cluster-name)-kubeconfig
-        - name: INFRA_PROVIDER
-          value: $(params.platform)
-        - name: WORKSPACE
-          value: $(workspaces.test-results.path)
         - name: TARGET_CLUSTERGROUP
           value: $(params.target-clustergroup)
       script: |

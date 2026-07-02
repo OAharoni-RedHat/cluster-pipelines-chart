@@ -134,19 +134,6 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     - name: kubeconfig
       workspace: shared-data
       subPath: kubeconfig
-    - name: test-results
-      workspace: shared-data
-      subPath: test-results
-- name: upload-test-results
-  runAfter:
-    - interop-test
-  when:
-    - input: "$(tasks.interop-test.results.outcome)"
-      operator: in
-      values: ["success", "failed"]
-  taskRef:
-    name: upload-test-results
-  params:
 - name: must-gather-hub
   runAfter:
     - interop-test
@@ -196,13 +183,25 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     - must-gather-spoke
 {{- end }}
   when:
-    - cel: "'$(tasks.must-gather-hub.results.outcome)' == 'success'"
+    - input: $(tasks.must-gather-hub.results.outcome)
+      operator: in
+      values: ["success"]
 {{- if eq .flavorName "hub-spoke" }}
-    - cel: "'$(tasks.must-gather-spoke.results.outcome)' == 'success'"
+    - input: $(tasks.must-gather-spoke.results.outcome)
+      operator: in
+      values: ["success"]
 {{- end }}
   taskRef:
     name: upload-must-gather
+  workspaces:
+    - name: must-gather
+      workspace: shared-data
+      subPath: must-gather
   params:
+    - name: pipeline-name
+      value: $(context.pipeline.name)
+    - name: pipelinerun-id
+      value: $(context.pipelineRun.uid)
 {{- end }}
 
 {{/*
@@ -223,4 +222,33 @@ Shared finally tasks (not flavor-specific cleanup).
   params:
     - name: aggregateTasksStatus
       value: "$(tasks.status)"
+- name: generate-ci-badge
+  taskRef:
+    name: generate-ci-badge
+  params:
+    - name: pattern-repo-url
+      value: $(params.pattern-repo-url)
+    - name: pattern-repo-revision
+      value: $(params.pattern-repo-revision)
+    - name: platform
+      value: {{ .platformName | quote }}
+    - name: ocp-version
+      value: {{ .ocpVersion | quote }}
+    - name: pattern-name
+      value: {{ .patternName | quote }}
+    - name: interop-status
+      value: $(tasks.interop-test.results.outcome)
+    - name: must-gather-status
+      value: $(tasks.upload-must-gather.status)
+    - name: pipelinerun-ns
+      value: $(context.pipelineRun.namespace)
+    - name: pipelinerun-name
+      value: $(context.pipelineRun.name)
+    - name: pipelinerun-id
+      value: $(context.pipelineRun.uid)
+    - name: pipeline-name
+      value: $(context.pipine.name)
+  workspaces:
+    - name: results
+      workspace: shared-data
 {{- end }}

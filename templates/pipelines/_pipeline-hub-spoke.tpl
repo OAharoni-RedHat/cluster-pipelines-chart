@@ -60,6 +60,9 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
     - input: $(tasks.status)
       operator: in
       values: ["Completed"]
+    - input: "$(params.force-skip-cleanup)"
+      operator: in
+      values: ["false"]
   taskRef:
     name: delete-cluster
   params:
@@ -70,6 +73,9 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
     - input: $(tasks.status)
       operator: in
       values: ["Completed"]
+    - input: "$(params.force-skip-cleanup)"
+      operator: in
+      values: ["false"]
   taskRef:
     name: delete-cluster
   params:
