@@ -114,3 +114,44 @@ pipelines:
     #     aws: {}
     #   flavors:
     #     standalone: {}
+  scheduleDefaults:
+    suspend: false
+    concurrencyPolicy: Forbid
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 3
+    workspaceStorage: 1Gi
+    timeout: 3h
+    taskTimeout: 2h
+    finallyTimeout: 30m
+    # triggerImage: registry.redhat.io/openshift4/ose-cli:latest
+
+  # Each entry creates a CronJob that starts a PipelineRun for an existing pipeline.
+  # cron schedules are started on UTC times
+  schedules:
+    - pipeline: mcg-aws-4-21-hub-spoke
+      cron: "0 6 * * 1" # Tuesday 6:00 UTC
+      params:
+        - name: force-skip-cleanup
+          value: true
+    - pipeline: mcg-aws-4-20-hub-spoke
+      cron: "0 6 * * 2" # Tuesday 6:00 UTC
+    - pipeline: mcg-aws-4-20-standalone
+      cron: "0 6 * * 2" # Tuesday 6:00 UTC
+    - pipeline: ansible-edge-aws-4-21-standalone
+      cron: "0 6 * * 3" # Wed 6:00 UTC
+      timeout: 4h
+      taskTimeout: 3h
+      finallyTimeout: 30m
+    - pipeline: ansible-edge-aws-4-20-standalone
+      cron: "0 6 * * 5" # Fri 6:00 UTC
+      timeout: 4h
+      taskTimeout: 3h
+      finallyTimeout: 30m
+    # - pipeline: ansible-edge-aws-4-21-standalone
+    #   cron: "0 3 * * 0"
+    #   timeout: 4h
+    #   taskTimeout: 3h
+    #   finallyTimeout: 30m
+    #   params:
+    #     - name: pattern-repo-revision
+    #       value: v2

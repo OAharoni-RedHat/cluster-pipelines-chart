@@ -10,6 +10,7 @@ Standalone flavor: single cluster Hive deploy, after metadata validation.
 - name: provision-cluster
   runAfter:
     - validate-pattern-metadata
+  timeout: {{ default "2h" .root.Values.pipelines.defaults.provisionTaskTimeout | quote }}
   taskRef:
     name: provision-cluster
   params:

@@ -5,6 +5,7 @@ HCP flavor: HyperShift hosted cluster (after metadata validation).
 - name: provision-hosted-cluster
   runAfter:
     - validate-pattern-metadata
+  timeout: {{ default "2h" .root.Values.pipelines.defaults.provisionTaskTimeout | quote }}
   taskRef:
     name: provision-hosted-cluster
   params:

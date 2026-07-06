@@ -15,6 +15,7 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
 - name: provision-hub
   runAfter:
     - validate-pattern-metadata
+  timeout: {{ default "2h" .root.Values.pipelines.defaults.provisionTaskTimeout | quote }}
   taskRef:
     name: provision-cluster
   params:
@@ -35,6 +36,7 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
 - name: provision-spoke
   runAfter:
     - validate-pattern-metadata
+  timeout: {{ default "2h" .root.Values.pipelines.defaults.provisionTaskTimeout | quote }}
   taskRef:
     name: provision-cluster
   params:
