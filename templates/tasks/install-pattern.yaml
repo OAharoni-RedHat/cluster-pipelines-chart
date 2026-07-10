@@ -1,3 +1,5 @@
+{{- include "pipelines.validatePatternSecrets" . }}
+{{- $maxSecrets := int (include "pipelines.maxPatternSecrets" .) }}
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -17,6 +19,10 @@ spec:
   workspaces:
     - name: pattern-repo
     - name: kubeconfig
+{{- range $i := until $maxSecrets }}
+    - name: values-secret-{{ $i }}
+      optional: true
+{{- end }}
   results:
     - name: outcome
   steps:
@@ -34,9 +40,26 @@ spec:
         unset KUBERNETES_SERVICE_HOST
         trap 'echo -n failed > $(results.outcome.path)' ERR
 
-        cd $(workspaces.pattern-repo.path)
+        # Copy secrets to home folder (they need to be referenced there in values-secrets.yaml)
+        HOME_DIR="${HOME:-/tekton/home}"
+        mkdir -p "${HOME_DIR}"
+        WORKSPACES_ROOT="$(dirname "$(workspaces.pattern-repo.path)")"
+        for dir in "${WORKSPACES_ROOT}"/*/; do
+          [ -d "$dir" ] || continue
+          name="$(basename "$dir")"
+          case "$name" in
+            pattern-repo|kubeconfig) continue ;;
+          esac
+          for f in "${dir}"*; do
+            [ -f "$f" ] || continue
+            dest="${HOME_DIR}/$(basename "$f")"
+            echo "Copying ${f} -> ${dest}"
+            cp "$f" "${dest}"
+            chmod 600 "${dest}"
+          done
+        done
 
-        # Install the pattern
+        cd $(workspaces.pattern-repo.path)
 
         ./pattern.sh make install
 

@@ -24,6 +24,36 @@ When unset, defaults.flavors (a list) is converted to the same map shape.
 {{- end }}
 
 {{/*
+TARGET_CLUSTERGROUP for install-pattern / interop-test.
+
+Per-flavor override: pipelines.patterns.*.flavors.<flavor>.clusterGroup
+Global default: pipelines.defaults.flavors.<flavor>.clusterGroup (map form only)
+Fallback: standalone/hcp -> standalone, hub-spoke and others -> hub
+*/}}
+{{- define "pipelines.targetClusterGroup" -}}
+{{- $flavorName := required "flavorName" .flavorName -}}
+{{- $flavorCfg := default dict .flavorCfg -}}
+{{- $root := .root -}}
+{{- if $flavorCfg.clusterGroup -}}
+{{- $flavorCfg.clusterGroup -}}
+{{- else -}}
+{{- $defaultCfg := dict -}}
+{{- with $root.Values.pipelines.defaults.flavors -}}
+{{- if kindIs "map" . -}}
+{{- with index . $flavorName -}}
+{{- $defaultCfg = . -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if $defaultCfg.clusterGroup -}}
+{{- $defaultCfg.clusterGroup -}}
+{{- else -}}
+hub
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Convert a version list or map to a map keyed by version string.
 */}}
 {{- define "tekton.versionsToMap" -}}
@@ -74,4 +104,59 @@ Sources pattern platforms or defaults.platforms.
     {{- $_ := set $platforms $name $cfg -}}
 {{- end -}}
 {{- toJson $platforms -}}
+{{- end }}
+
+{{/*
+Kubernetes Secret name from a pipelines.patterns.*.secrets entry.
+*/}}
+{{- define "pipelines.patternSecretName" -}}
+{{- if kindIs "string" . -}}
+{{- . -}}
+{{- else -}}
+{{- required "pattern secret must set name" .name -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Tekton workspace name for a secret (DNS-1123: underscores -> hyphens).
+*/}}
+{{- define "pipelines.secretWorkspaceName" -}}
+{{- . | replace "_" "-" | trunc 63 | trimSuffix "-" -}}
+{{- end }}
+
+{{/*
+Validate pipelines.patterns.*.secrets (duplicates and workspace collisions).
+*/}}
+{{- define "pipelines.validatePatternSecrets" -}}
+{{- $workspaces := dict -}}
+{{- range $patternName, $app := .Values.pipelines.patterns -}}
+{{- if $app.secrets -}}
+{{- $seen := dict -}}
+{{- range $entry := $app.secrets -}}
+{{- $secretName := include "pipelines.patternSecretName" $entry -}}
+{{- $wsName := include "pipelines.secretWorkspaceName" $secretName -}}
+{{- if hasKey $seen $wsName -}}
+{{- fail (printf "pattern %q lists duplicate secret %q (workspace %q)" $patternName $secretName $wsName) -}}
+{{- end -}}
+{{- $_ := set $seen $wsName true -}}
+{{- if and (hasKey $workspaces $wsName) (ne (index $workspaces $wsName) $secretName) -}}
+{{- fail (printf "secrets %q and %q both map to workspace %q" (index $workspaces $wsName) $secretName $wsName) -}}
+{{- end -}}
+{{- $_ := set $workspaces $wsName $secretName -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Maximum pipelines.patterns.*.secrets count across all patterns.
+*/}}
+{{- define "pipelines.maxPatternSecrets" -}}
+{{- $max := 0 -}}
+{{- range $_, $app := .Values.pipelines.patterns -}}
+{{- if $app.secrets -}}
+{{- $max = max $max (len $app.secrets) -}}
+{{- end -}}
+{{- end -}}
+{{- $max -}}
 {{- end }}

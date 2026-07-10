@@ -1,3 +1,4 @@
+{{- $_ := include "pipelines.validatePatternSecrets" $ }}
 {{- range $patternName, $app := .Values.pipelines.patterns }}
   {{- $platforms := include "tekton.supportedPlatforms" (dict
         "root" $
@@ -13,7 +14,7 @@
           "app" $app
         ) | fromJson }}
     {{- range $ocpVersion, $_ := $ocpVersions }}
-      {{- range $flavorName, $_ := $flavors }}
+      {{- range $flavorName, $flavorCfg := $flavors }}
         {{- $ctx := dict
               "root" $
               "app" $app
@@ -21,6 +22,7 @@
               "platformName" $platformName
               "ocpVersion" $ocpVersion
               "flavorName" $flavorName
+              "flavorCfg" $flavorCfg
               "waitTimeoutMinutes" "90"
               "repo" (default "" $app.repo)
               "pipelineNamespace" $.Values.pipelineNamespace
@@ -55,6 +57,12 @@ spec:
       default: false
   workspaces:
     - name: shared-data
+    {{- if $app.secrets }}
+    {{- range $entry := $app.secrets }}
+    {{- $wsName := include "pipelines.secretWorkspaceName" (include "pipelines.patternSecretName" $entry) }}
+    - name: {{ $wsName }}
+    {{- end }}
+    {{- end }}
   tasks:
     {{- include "pipelines.tasks.setup" $ctx | nindent 4 }}
     {{- $provisionTpl := printf "pipelines.provision.%s" $flavorName -}}

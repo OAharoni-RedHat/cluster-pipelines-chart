@@ -33,6 +33,14 @@ Checkout, metadata validation, and sizing (always first).
 Install, optional spoke import, tests, and diagnostics (after provisioning).
 */}}
 {{- define "pipelines.tasks.post-provision" -}}
+{{- $patternSecrets := list -}}
+{{- if .app.secrets -}}
+{{- range $i, $entry := .app.secrets -}}
+{{- $name := include "pipelines.patternSecretName" $entry -}}
+{{- $workspace := include "pipelines.secretWorkspaceName" $name -}}
+{{- $patternSecrets = append $patternSecrets (dict "name" $name "workspace" $workspace "index" $i) -}}
+{{- end -}}
+{{- end -}}
 - name: install-pattern
   onError: continue
   runAfter:
@@ -50,17 +58,15 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     {{- if eq .flavorName "standalone" }}
     - name: cluster-name
       value: $(tasks.provision-cluster.results.cluster-name)
-    - name: target-clustergroup
-      value: standalone
     {{- else if eq .flavorName "hub-spoke" }}
     - name: cluster-name
       value: $(tasks.provision-hub.results.cluster-name)
     {{- else }}
     - name: cluster-name
       value: $(tasks.provision-hosted-cluster.results.cluster-name)
-    - name: target-clustergroup
-      value: standalone
     {{- end }}
+    - name: target-clustergroup
+      value: {{ include "pipelines.targetClusterGroup" . | quote }}
   workspaces:
     - name: pattern-repo
       workspace: shared-data
@@ -68,6 +74,10 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     - name: kubeconfig
       workspace: shared-data
       subPath: kubeconfig
+    {{- range $secret := $patternSecrets }}
+    - name: values-secret-{{ $secret.index }}
+      workspace: {{ $secret.workspace }}
+    {{- end }}
 {{- if eq .flavorName "hub-spoke" }}
 - name: import-spoke
   onError: continue
@@ -108,8 +118,6 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     {{- if eq .flavorName "standalone" }}
     - name: hub-cluster-name
       value: $(tasks.provision-cluster.results.cluster-name)
-    - name: target-clustergroup
-      value: standalone
     {{- else if eq .flavorName "hub-spoke" }}
     - name: hub-cluster-name
       value: $(tasks.provision-hub.results.cluster-name)
@@ -119,6 +127,8 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     - name: hub-cluster-name
       value: $(tasks.provision-hosted-cluster.results.cluster-name)
     {{- end }}
+    - name: target-clustergroup
+      value: {{ include "pipelines.targetClusterGroup" . | quote }}
     - name: install-status
     {{- if eq .flavorName "hub-spoke" }}
       value: $(tasks.import-spoke.results.import-status)
@@ -247,7 +257,7 @@ Shared finally tasks (not flavor-specific cleanup).
     - name: pipelinerun-id
       value: $(context.pipelineRun.uid)
     - name: pipeline-name
-      value: $(context.pipine.name)
+      value: $(context.pipeline.name)
   workspaces:
     - name: results
       workspace: shared-data
