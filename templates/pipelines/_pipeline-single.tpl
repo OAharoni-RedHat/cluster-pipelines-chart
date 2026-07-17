@@ -1,7 +1,7 @@
 {{/*
-Standalone flavor: single cluster Hive deploy, after metadata validation.
+Single cluster flavor: single cluster Hive deploy, after metadata validation.
 */}}
-{{- define "pipelines.provision.standalone" -}}
+{{- define "pipelines.provision.single" -}}
 {{- $params := merge (deepCopy .) (dict
       "clusterBaseName" (printf "%s" .patternName )
       "clusterRole" "hub"
@@ -30,7 +30,7 @@ Standalone flavor: single cluster Hive deploy, after metadata validation.
       subPath: install-config/{{ $params.clusterBaseName }}-hub
 {{- end }}
 
-{{- define "pipelines.cleanup.standalone" -}}
+{{- define "pipelines.cleanup.single" -}}
 - name: delete-cluster-if-succeeded
   when:
     - input: $(tasks.status)

@@ -1,6 +1,6 @@
 {{/*
 Resolve supported flavors for a pattern.
-Pattern-level flavors may be a map (hub: {}) or a list ([hub, hub-spoke]).
+Pattern-level flavors may be a map (single: {}) or a list ([single, multi]).
 When unset, defaults.flavors (a list) is converted to the same map shape.
 */}}
 {{- define "pipelines.supportedFlavors" -}}
@@ -16,8 +16,12 @@ When unset, defaults.flavors (a list) is converted to the same map shape.
     {{- end -}}
   {{- end -}}
 {{- else -}}
-  {{- range $root.Values.pipelines.defaults.flavors -}}
-    {{- $_ := set $flavors . (dict) -}}
+  {{- if kindIs "map" $root.Values.pipelines.defaults.flavors -}}
+    {{- $flavors = $root.Values.pipelines.defaults.flavors -}}
+  {{- else if kindIs "slice" $root.Values.pipelines.defaults.flavors -}}
+    {{- range $root.Values.pipelines.defaults.flavors -}}
+      {{- $_ := set $flavors . (dict) -}}
+    {{- end -}}
   {{- end -}}
 {{- end -}}
 {{- toJson $flavors -}}
@@ -28,7 +32,7 @@ TARGET_CLUSTERGROUP for install-pattern / interop-test.
 
 Per-flavor override: pipelines.patterns.*.flavors.<flavor>.clusterGroup
 Global default: pipelines.defaults.flavors.<flavor>.clusterGroup (map form only)
-Fallback: standalone/hcp -> standalone, hub-spoke and others -> hub
+Fallback: -> hub
 */}}
 {{- define "pipelines.targetClusterGroup" -}}
 {{- $flavorName := required "flavorName" .flavorName -}}

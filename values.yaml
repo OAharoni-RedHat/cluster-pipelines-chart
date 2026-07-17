@@ -61,14 +61,14 @@ pipelines:
       - "4.20"
       - "4.21"
     flavors: # These are the pipeline "types"
-      # List form: [standalone, hub-spoke] — clusterGroup defaults to hub;
-      # override with map form, e.g. standalone: { clusterGroup: standalone }
+      # List form: [single, multi] — clusterGroup defaults to hub;
+      # override with map form, e.g. single: { clusterGroup: standalone }
       # sets TARGET_CLUSTERGROUP during install and test time
-      standalone: # This will be a hive made regular single cluster
+      single: # This will be a hive made regular single cluster
         clusterGroup: hub
-      hub-spoke: # This will be a hive made regular hub and spoke cluster
+      multi: # This will be a hive made regular hub and spoke cluster
         clusterGroup: hub
-      hcp: # This will be just a single hub cluster setup with hcp hosted clusters
+      hosted: # This will be just a single hub cluster setup with hcp hosted clusters
         clusterGroup: hub
     networking:
       networkType: OVNKubernetes
@@ -93,17 +93,17 @@ pipelines:
       repo: https://github.com/darkdoc/multicloud-gitops.git
       revision: pipeline_test
       flavors:
-        standalone:
+        single:
           clusterGroup: standalone
-        hub-spoke:
-        # - hcp # not yet implemented
+        multi:
+        hosted: # not yet implemented
     ansible-edge:
       repo: https://github.com/darkdoc/ansible-edge-gitops.git
       revision: pipeline_test
       platforms: #if empty, or unset it will be the defaults.platforms
         aws:
       flavors:
-        - standalone
+        single:
       # Pre-created Secrets in pipelineNamespace;
       # workspace name matches secret name (underscores become hyphens). Bind each at PipelineRun / in UI.
       secrets:
@@ -113,13 +113,15 @@ pipelines:
 
     # industrial-edge:
     #   repo: https://github.com/validatedpatterns/industrial-edge.git
-    #   flavors: 
-    #     - hub_spoke
+    #   flavors:
+    #     - multi
+    #   secrets:
+    #     - industrial-edge-secret-values-file
 
     # medical-diag:
     #   repo: https://github.com/validatedpatterns/medical-diagnosis.git
     #   flavors:
-    #     - standalone
+    #     - single
 
     # # These are the tested tier
     # layered-zero:
@@ -145,26 +147,31 @@ pipelines:
   # Each entry creates a CronJob that starts a PipelineRun for an existing pipeline.
   # cron schedules are started on UTC times
   schedules:
-    - pipeline: mcg-aws-4-21-hub-spoke
+    - pipeline: mcg-aws-4-21-multi
       cron: "0 6 * * 1" # Tuesday 6:00 UTC
-      params:
-        - name: force-skip-cleanup
-          value: true
-    - pipeline: mcg-aws-4-20-hub-spoke
+    - pipeline: mcg-aws-4-20-multi
       cron: "0 6 * * 2" # Tuesday 6:00 UTC
-    - pipeline: mcg-aws-4-20-standalone
+    - pipeline: mcg-aws-4-20-single
       cron: "0 6 * * 2" # Tuesday 6:00 UTC
-    - pipeline: ansible-edge-aws-4-21-standalone
+    - pipeline: ansible-edge-aws-4-21-single
       cron: "0 6 * * 3" # Wed 6:00 UTC
       timeout: 4h
       taskTimeout: 3h
       finallyTimeout: 30m
-    - pipeline: ansible-edge-aws-4-20-standalone
+    - pipeline: ansible-edge-aws-4-20-single
       cron: "0 6 * * 5" # Fri 6:00 UTC
       timeout: 4h
       taskTimeout: 3h
       finallyTimeout: 30m
-    # - pipeline: ansible-edge-aws-4-21-standalone
+    - pipeline: layered-zero-aws-4-21-single
+      cron: "0 6 * * 2" # Tue 6:00 UTC
+      timeout: 4h
+      taskTimeout: 3h
+      finallyTimeout: 30m
+      params:
+        - name: force-skip-cleanup
+          value: true
+    # - pipeline: ansible-edge-aws-4-21-single
     #   cron: "0 3 * * 0"
     #   timeout: 4h
     #   taskTimeout: 3h

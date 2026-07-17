@@ -20,7 +20,7 @@ spec:
       default: hub
     - name: flavor
       type: string
-      default: standalone
+      default: single
     - name: platform
       type: string
       default: ""

@@ -1,7 +1,7 @@
 {{/*
-Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy).
+Multi cluster flavor: hub and spoke provision in parallel (pool claim or Hive deploy).
 */}}
-{{- define "pipelines.provision.hub-spoke" -}}
+{{- define "pipelines.provision.multi" -}}
 {{- $hubParams := merge (deepCopy .) (dict
       "clusterBaseName" (printf "%s" .patternName)
       "clusterRole" "hub"
@@ -56,7 +56,7 @@ Hub-spoke flavor: hub and spoke provision in parallel (pool claim or Hive deploy
       subPath: install-config/{{ $spokeParams.clusterBaseName }}-spoke
 {{- end }}
 
-{{- define "pipelines.cleanup.hub-spoke" -}}
+{{- define "pipelines.cleanup.multi" -}}
 - name: delete-spoke-if-succeeded
   when:
     - input: $(tasks.status)

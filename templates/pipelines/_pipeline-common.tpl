@@ -44,9 +44,9 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
 - name: install-pattern
   onError: continue
   runAfter:
-    {{- if eq .flavorName "standalone" }}
+    {{- if eq .flavorName "single" }}
     - provision-cluster
-    {{- else if eq .flavorName "hub-spoke" }}
+    {{- else if eq .flavorName "multi" }}
     - provision-hub
     - provision-spoke
     {{- else }}
@@ -55,10 +55,10 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
   taskRef:
     name: install-pattern
   params:
-    {{- if eq .flavorName "standalone" }}
+    {{- if eq .flavorName "single" }}
     - name: cluster-name
       value: $(tasks.provision-cluster.results.cluster-name)
-    {{- else if eq .flavorName "hub-spoke" }}
+    {{- else if eq .flavorName "multi" }}
     - name: cluster-name
       value: $(tasks.provision-hub.results.cluster-name)
     {{- else }}
@@ -78,7 +78,7 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     - name: values-secret-{{ $secret.index }}
       workspace: {{ $secret.workspace }}
     {{- end }}
-{{- if eq .flavorName "hub-spoke" }}
+{{- if eq .flavorName "multi" }}
 - name: import-spoke
   onError: continue
   runAfter:
@@ -103,7 +103,7 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
 - name: interop-test
   onError: continue
   runAfter:
-    {{- if eq .flavorName "hub-spoke" }}
+    {{- if eq .flavorName "multi" }}
     - import-spoke
     {{- else }}
     - install-pattern
@@ -111,14 +111,10 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
   taskRef:
     name: interop-test
   params:
-    - name: flavor
-      value: {{ .flavorName | quote }}
-    - name: test-edge
-      value: {{ if eq .flavorName "hub-spoke" }}"true"{{ else }}"false"{{ end }}
-    {{- if eq .flavorName "standalone" }}
+    {{- if eq .flavorName "single" }}
     - name: hub-cluster-name
       value: $(tasks.provision-cluster.results.cluster-name)
-    {{- else if eq .flavorName "hub-spoke" }}
+    {{- else if eq .flavorName "multi" }}
     - name: hub-cluster-name
       value: $(tasks.provision-hub.results.cluster-name)
     - name: spoke-cluster-name
@@ -130,13 +126,11 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     - name: target-clustergroup
       value: {{ include "pipelines.targetClusterGroup" . | quote }}
     - name: install-status
-    {{- if eq .flavorName "hub-spoke" }}
+    {{- if eq .flavorName "multi" }}
       value: $(tasks.import-spoke.results.import-status)
     {{- else }}
       value: $(tasks.install-pattern.results.outcome)
     {{- end }}
-    - name: platform
-      value: {{ .platformName | quote }}
   workspaces:
     - name: pattern-repo
       workspace: shared-data
@@ -153,9 +147,9 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     name: must-gather
   params:
     - name: cluster-name
-    {{- if eq .flavorName "standalone" }}
+    {{- if eq .flavorName "single" }}
       value: $(tasks.provision-cluster.results.cluster-name)
-    {{- else if eq .flavorName "hub-spoke" }}
+    {{- else if eq .flavorName "multi" }}
       value: $(tasks.provision-hub.results.cluster-name)
     {{- else }}
       value: $(tasks.provision-hosted-cluster.results.cluster-name)
@@ -167,7 +161,7 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     - name: must-gather
       workspace: shared-data
       subPath: must-gather
-{{- if eq .flavorName "hub-spoke" }}
+{{- if eq .flavorName "multi" }}
 - name: must-gather-spoke
   runAfter:
     - interop-test
@@ -189,14 +183,14 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
 - name: upload-must-gather
   runAfter:
     - must-gather-hub
-{{- if eq .flavorName "hub-spoke" }}
+{{- if eq .flavorName "multi" }}
     - must-gather-spoke
 {{- end }}
   when:
     - input: $(tasks.must-gather-hub.results.outcome)
       operator: in
       values: ["success"]
-{{- if eq .flavorName "hub-spoke" }}
+{{- if eq .flavorName "multi" }}
     - input: $(tasks.must-gather-spoke.results.outcome)
       operator: in
       values: ["success"]

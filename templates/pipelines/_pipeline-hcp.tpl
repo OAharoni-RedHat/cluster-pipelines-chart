@@ -1,7 +1,7 @@
 {{/*
-HCP flavor: HyperShift hosted cluster (after metadata validation).
+Hosted cluster flavor: HyperShift hosted cluster (after metadata validation).
 */}}
-{{- define "pipelines.provision.hcp" -}}
+{{- define "pipelines.provision.hosted" -}}
 - name: provision-hosted-cluster
   runAfter:
     - validate-pattern-metadata
@@ -21,7 +21,7 @@ HCP flavor: HyperShift hosted cluster (after metadata validation).
       subPath: kubeconfig
 {{- end }}
 
-{{- define "pipelines.cleanup.hcp" -}}
+{{- define "pipelines.cleanup.hosted" -}}
 - name: destroy-hosted-cluster-if-succeeded
   when:
     - input: $(tasks.status)

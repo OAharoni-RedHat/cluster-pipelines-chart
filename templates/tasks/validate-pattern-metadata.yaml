@@ -130,7 +130,7 @@ spec:
             exit 1
         fi
 
-        if [ "${FLAVOR}" = "hcp" ]; then
+        if [ "${FLAVOR}" = "hosted" ]; then
             HYPERSHIFT_SUPPORT=$(yq '.extra_features.hypershift_support // false' "${PATTERN_METADATA}")
 
             if [ "${HYPERSHIFT_SUPPORT}" = "false" ]; then
@@ -139,7 +139,7 @@ spec:
             fi
         fi
 
-        if [ "${FLAVOR}" = "hub-spoke" ]; then
+        if [ "${FLAVOR}" = "multi" ]; then
             SPOKE_SUPPORT=$(yq '.extra_features.spoke_support // false' "${PATTERN_METADATA}")
 
             if [ "${SPOKE_SUPPORT}" = "false" ]; then
