@@ -81,11 +81,6 @@ pipelines:
         - 172.30.0.0/16
     mustGatherImg: quay.io/hybridcloudpatterns/must-gather
     utilityContainerImg: quay.io/aeros/utility-container:import_test
-  # Short OCP version (e.g. "4.21") -> ClusterImageSet name on the hub
-  imageSets:
-    "4.18": img4.18.12-x86-64-appsub
-    "4.20": img4.20.3-x86-64-appsub
-    "4.21": img4.21.6-x86-64-appsub
 
   patterns:
     # These are the maintained tier

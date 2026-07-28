@@ -74,11 +74,24 @@ spec:
   results:
     - name: cluster-name
       description: The name of the cluster created
+    - name: release-image
+      description: The the exact, latest z stream release-image for a major.minor version
+      value: $(steps.get-openshift-version.results.release-image)
+    - name: exact-ocp-version
+      description: The the exact, z stream version for a major.minor version
+      value: $(steps.get-openshift-version.results.exact-ocp-version)
   workspaces:
     - name: kubeconfig
     - name: install-config
       description: Holds generated install-config.yaml and clusterdeployment.yaml
   steps:
+    - name: get-openshift-version
+      ref:
+        name: get-openshift-version
+      params:
+        - name: ocp-version
+          value: $(params.ocp-version)
+
     - name: generate-install-config
       image: {{ .Values.toolsImage }}
       script: |
@@ -223,9 +236,7 @@ spec:
         #!/usr/bin/env bash
         set -euo pipefail
 
-        VERSION_STRING="$(params.ocp-version)"
-        VERSION_STRING="${VERSION_STRING//./-}"
-        CLUSTER_NAME="$(params.cluster-base-name)-$(params.platform)-${VERSION_STRING}-$(params.cluster-role)-$(params.flavor)"
+        CLUSTER_NAME="$(cat "$(results.cluster-name.path)")"
 
         INSTALL_CFG="$(workspaces.install-config.path)/install-config.yaml"
 
@@ -234,19 +245,19 @@ spec:
           --from-file=install-config.yaml="${INSTALL_CFG}" \
           --dry-run=client -o yaml | oc apply -f -
 
-
     - name: generate-clusterdeployment
       image: {{ .Values.toolsImage }}
+      env:
+        - name: RELEASE_IMAGE
+          value: $(steps.get-openshift-version.results.release-image)
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
 
-        VERSION_STRING="$(params.ocp-version)"
-        VERSION_STRING="${VERSION_STRING//./-}"
-        CLUSTER_NAME="$(params.cluster-base-name)-$(params.platform)-${VERSION_STRING}-$(params.cluster-role)-$(params.flavor)"
+        CLUSTER_NAME="$(cat "$(results.cluster-name.path)")"
         NAMESPACE="$(params.namespace)"
         PLATFORM="$(params.platform)"
-        OCP_VERSION="$(params.ocp-version)"
+
         OUT="$(workspaces.install-config.path)/clusterdeployment.yaml"
 
         case "${PLATFORM}" in
@@ -261,18 +272,6 @@ spec:
         {{- end }}
           *)
             echo "unsupported platform: ${PLATFORM}" >&2
-            exit 1
-            ;;
-        esac
-
-        case "${OCP_VERSION}" in
-        {{- range $ver, $img := .Values.pipelines.imageSets }}
-          {{ $ver }})
-            IMAGE_SET={{ $img | quote }}
-            ;;
-        {{- end }}
-          *)
-            echo "unsupported ocp-version: ${OCP_VERSION}" >&2
             exit 1
             ;;
         esac
@@ -303,8 +302,7 @@ spec:
           provisioning:
             installConfigSecretRef:
               name: ${CLUSTER_NAME}-install-config
-            imageSetRef:
-              name: ${IMAGE_SET}
+            releaseImage: ${RELEASE_IMAGE}
           pullSecretRef:
             name: global-pullsecret
           platform:

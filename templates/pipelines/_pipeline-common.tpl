@@ -238,6 +238,14 @@ Shared finally tasks (not flavor-specific cleanup).
       value: {{ .platformName | quote }}
     - name: ocp-version
       value: {{ .ocpVersion | quote }}
+    - name: exact-ocp-version
+    {{- if eq .flavorName "single" }}
+      value: $(tasks.provision-cluster.results.exact-ocp-version)
+    {{- else if eq .flavorName "multi" }}
+      value: $(tasks.provision-hub.results.exact-ocp-version)
+    {{- else }}
+      value: $(tasks.provision-hosted-cluster.results.exact-ocp-version)
+    {{- end }}
     - name: pattern-name
       value: {{ .patternName | quote }}
     - name: interop-status

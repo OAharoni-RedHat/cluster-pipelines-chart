@@ -108,17 +108,8 @@ spec:
 
         OCP_VERSION="$(params.ocp-version)"
 
-        case "${OCP_VERSION}" in
-        {{- range $ver, $img := .Values.pipelines.imageSets }}
-          {{ $ver }})
-            OPENSHIFT_VERSION="{{ regexFind "[0-9]+\\.[0-9]+\\.[0-9]+" $img }}"
-            ;;
-        {{- end }}
-          *)
-            OPENSHIFT_VERSION="N/A"
-            ;;
-        esac
 
+        OPENSHIFT_VERSION="$(params.exact-ocp-version)"
         OUTPUT_FILENAME=${PIPELINE_NAME}-stable-badge.json
         OUTPUT_FILE="$(workspaces.results.path)/${OUTPUT_FILENAME}"
 
