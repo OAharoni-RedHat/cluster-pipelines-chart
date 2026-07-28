@@ -55,6 +55,14 @@ spec:
       type: string
       description: Skip cluster cleanup, even if everything is green
       default: false
+    - name: cluster-name-postfix
+      type: string
+      description: >
+        Optional Hive cluster name suffix (4-8 lowercase alphanumeric characters).
+        When empty, the random suffix from the PipelineRun name ({pipeline}-<suffix>) is
+        used so concurrent runs do not share a ClusterDeployment. Set to an existing
+        postfix (e.g. srfbxw from a prior PipelineRun name) to reuse that cluster.
+      default: ""
   workspaces:
     - name: shared-data
     {{- if $app.secrets }}

@@ -53,6 +53,7 @@ Every generated pipeline exposes:
 | `pattern-repo-url` | Override pattern Git URL (forks). |
 | `pattern-repo-revision` | Override Git revision for this run. |
 | `force-skip-cleanup` | When `"true"`, a **successful** run skips Tekton-driven cluster deletion in `finally` for Hive flavors. See [Cluster cleanup and deprovisioning](#cluster-cleanup-and-deprovisioning). |
+| `cluster-name-postfix` | Optional 4–8 character lowercase alphanumeric suffix on the Hive cluster name. Empty (default): random suffix from the `PipelineRun` name after `{pipeline}-`. Set to that suffix (e.g. from the console) to reuse a `ClusterDeployment`. |
 
 ### End-to-end task layout
 
@@ -86,7 +87,7 @@ If validation fails, provisioning does not start.
 
 One Hive-managed cluster acting as the pattern target (metadata role **hub**).
 
-- **`provision-cluster`** — After validation: builds `install-config` and `ClusterDeployment` from pattern name, platform, OCP version, role `hub`, and flavor `single`; applies them in `pipelineNamespace`; waits until the deployment is Ready; exports admin kubeconfig (and password when present) into `shared-data` / `kubeconfig`.
+- **`provision-cluster`** — After validation: builds `install-config` and `ClusterDeployment` from pattern name, platform, OCP version, role, flavor, and a per-run suffix (`cluster-name-postfix` or the `PipelineRun` name tail); applies them in `pipelineNamespace`; waits until the deployment is Ready; exports admin kubeconfig (and password when present) into `shared-data` / `kubeconfig`.
 
 Cluster name pattern:
 
@@ -323,25 +324,35 @@ Pattern secrets for that pipeline are injected into the embedded `PipelineRun` t
 
 ---
 
-## Cluster identity and reuse (limitations)
+## Cluster identity and reuse
 
-### Deterministic cluster names
+### Cluster name suffix
 
-Hive provisioning derives a fixed name from pattern, platform, OCP version, cluster role, and flavor. Re-applying the same `ClusterDeployment` name does not create a second cluster; an existing deployment is waited on again.
+Hive provisioning builds the `ClusterDeployment` name from pattern, platform, OCP version, cluster role, flavor, and a **suffix**:
 
-There is **no locking** yet between concurrent `PipelineRun`s that target the same pipeline (same pattern / platform / version / flavor).
+```text
+<pattern>-<platform>-<ocp-version>-<role>-<flavor>-<suffix>
+```
 
-### Pros
+- **Default (`cluster-name-postfix` empty)** — Suffix is the part of `$(context.pipelineRun.name)` after `$(context.pipeline.name)-` (the random segment from `generateName`, e.g. `srfbxw` in `layered-zero-aws-4-21-single-srfbxw`). If the run name does not match that pattern, the first five hex digits of the `PipelineRun` UID are used instead. Hub and spoke in **multi** share the same suffix for one run.
+- **Override** — Set `cluster-name-postfix` on the `PipelineRun` to a 4–8 character `[a-z0-9]` value (typically the suffix from a prior run’s name). The run targets that `ClusterDeployment`: `oc apply` waits until Ready again (reuse). Concurrent runs with the **same** override still race on the same cluster.
 
-- If a run failed late (timing, flaky test, infra blip), a retry can **reuse** the same cluster instead of reprovisioning from scratch.
-- The environment can **continue** from install/test steps once provision has already succeeded.
+Re-applying the same `ClusterDeployment` name does not create a second cluster; an existing deployment is waited on again.
 
-### Cons
+### Tradeoffs
 
-- **Concurrent runs** of the same pipeline (or overlapping schedules) race on the same cluster name and shared kubeconfig artifacts.
-- **`pattern-repo-revision`** (or param overrides) from different runs can interleave: it is undefined which revision gets installed and tested on that shared cluster.
+**Pros**
 
-Mitigations today: use `concurrencyPolicy: Forbid` on schedules, avoid parallel manual runs for the same pipeline name, or use `force-skip-cleanup` / skipped cleanup only when you intentionally keep a cluster for investigation.
+- Concurrent runs of the same pipeline no longer collide on the default suffix.
+- Intentional reuse: set `cluster-name-postfix` to the random suffix from a prior `PipelineRun` name (same token as the end of the cluster name).
+
+**Cons**
+
+- A retry with an empty postfix provisions a **new** cluster unless you pass the previous suffix.
+- Concurrent runs with the same postfix override can still interleave install/test and secret updates.
+- More unique clusters per schedule increases provision cost unless `finally` cleanup runs.
+
+Mitigations: use `concurrencyPolicy: Forbid` on schedules when overlap is still a concern; pass `cluster-name-postfix` for deliberate reuse; use `force-skip-cleanup` only when keeping a cluster for investigation.
 
 ---
 

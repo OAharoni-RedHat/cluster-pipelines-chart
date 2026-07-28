@@ -33,6 +33,25 @@ spec:
     - name: ssh-public-key
       type: string
       default: ""
+    - name: cluster-name-postfix
+      type: string
+      description: >
+        Optional name suffix (4-8 lowercase alphanumeric). When empty, the random
+        suffix from the PipelineRun name ({pipeline-name}-<suffix>) is used, with UID
+        fragment fallback when the run name does not follow that pattern.
+      default: ""
+    - name: pipelinerun-name
+      type: string
+      default: ""
+      description: PipelineRun metadata.name for default postfix derivation
+    - name: pipeline-name
+      type: string
+      default: ""
+      description: Pipeline metadata.name; used with pipelinerun-name for default postfix
+    - name: pipelinerun-uid
+      type: string
+      default: ""
+      description: PipelineRun UID; fallback default postfix when run name suffix cannot be derived
     - name: control-plane-config
       type: object
       properties:
@@ -68,8 +87,38 @@ spec:
 
         VERSION_STRING="$(params.ocp-version)"
         VERSION_STRING="${VERSION_STRING//./-}"
-        CLUSTER_NAME="$(params.cluster-base-name)-$(params.platform)-${VERSION_STRING}-$(params.cluster-role)-$(params.flavor)"
-        echo -n ${CLUSTER_NAME} > $(results.cluster-name.path)
+
+        OVERRIDE_POSTFIX="$(params.cluster-name-postfix)"
+        if [ -n "${OVERRIDE_POSTFIX}" ]; then
+          if ! [[ "${OVERRIDE_POSTFIX}" =~ ^[a-z0-9]{4,8}$ ]]; then
+            echo "cluster-name-postfix must be 4-8 lowercase alphanumeric characters when set" >&2
+            exit 1
+          fi
+          POSTFIX="${OVERRIDE_POSTFIX}"
+        else
+          PIPELINE_NAME="$(params.pipeline-name)"
+          RUN_NAME="$(params.pipelinerun-name)"
+          PREFIX="${PIPELINE_NAME}-"
+          if [[ -n "${RUN_NAME}" && -n "${PIPELINE_NAME}" && "${RUN_NAME}" == "${PREFIX}"* ]]; then
+            POSTFIX="${RUN_NAME#${PREFIX}}"
+          else
+            POSTFIX=""
+          fi
+          if [[ -z "${POSTFIX}" || ! "${POSTFIX}" =~ ^[a-z0-9]{4,8}$ ]]; then
+            PIPELINERUN_UID="$(params.pipelinerun-uid)"
+            if [ -z "${PIPELINERUN_UID}" ]; then
+              echo "could not derive cluster name postfix from PipelineRun name; pipelinerun-uid is required for fallback" >&2
+              exit 1
+            fi
+            HEX_UID="${PIPELINERUN_UID//-/}"
+            HEX_UID="${HEX_UID,,}"
+            POSTFIX="${HEX_UID:0:5}"
+            echo "Using UID fragment for cluster name postfix (PipelineRun name did not match ${PREFIX}<suffix>)" >&2
+          fi
+        fi
+
+        CLUSTER_NAME="$(params.cluster-base-name)-$(params.platform)-${VERSION_STRING}-$(params.cluster-role)-$(params.flavor)-${POSTFIX}"
+        echo -n "${CLUSTER_NAME}" > "$(results.cluster-name.path)"
         PLATFORM="$(params.platform)"
 
         CP_REPLICAS="$(params.control-plane-config.replicas)"
