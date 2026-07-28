@@ -20,6 +20,10 @@ spec:
     - name: ocp-version
       type: string
       default: ""
+    - name: exact-ocp-version
+      description: The the exact, z stream version for a major.minor version
+      type: string
+      default: "N/A"
     - name: pattern-name
       type: string
       default: ""
@@ -146,6 +150,12 @@ spec:
       volumeMounts:
       - name: aws-creds
         mountPath: /tekton/home/.aws
+      when:
+        - cel: "'$(params.pattern-repo-url)'.contains('github.com/validatedpatterns')"
+        - input: "$(params.pattern-repo-revision)"
+          operator: in
+          values: [ "main" ]
+
       script: |
         #!/usr/bin/env bash
 
