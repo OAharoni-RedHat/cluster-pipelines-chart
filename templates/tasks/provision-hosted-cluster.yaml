@@ -75,9 +75,9 @@ spec:
     - name: creds
       description: Holds generated aws sts creds
   volumes:
-  - name: aws-creds
+  - name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
     secret:
-      secretName: aws-creds
+      secretName: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
   - name: pull-secret
     secret:
       secretName: global-pullsecret
@@ -127,13 +127,14 @@ spec:
 
         if oc get hostedcluster "${CLUSTER_NAME}" -n clusters &>/dev/null; then
           echo "HostedCluster ${CLUSTER_NAME} already exists, skipping creation"
+
           exit 0
         fi
 
     - name: generate-sts-creds
       image: {{ .Values.pipelines.defaults.utilityContainerImg }}
       volumeMounts:
-      - name: aws-creds
+      - name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
         mountPath: /tekton/home/.aws
       script: |
         #!/bin/bash
@@ -193,7 +194,7 @@ spec:
         echo "Instance Type: ${WORKER_TYPE}"
         echo "Release Image: ${RELEASE_IMAGE}"
         echo "============================================"
-      
+
         hcp create cluster aws \
           --name ${CLUSTER_NAME} \
           --node-pool-replicas ${WORKER_REPLICAS} \

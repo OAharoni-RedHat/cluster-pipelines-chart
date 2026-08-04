@@ -45,9 +45,9 @@ spec:
     - name: pipeline-name
       type: string
   volumes:
-  - name: aws-creds
+  - name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
     secret:
-      secretName: aws-creds
+      secretName: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
   workspaces:
     - name: results
   steps:
@@ -148,7 +148,7 @@ spec:
     - name: upload-badge
       image: {{ .Values.pipelines.defaults.utilityContainerImg }}
       volumeMounts:
-      - name: aws-creds
+      - name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
         mountPath: /tekton/home/.aws
       when:
         - cel: "'$(params.pattern-repo-url)'.contains('github.com/validatedpatterns')"

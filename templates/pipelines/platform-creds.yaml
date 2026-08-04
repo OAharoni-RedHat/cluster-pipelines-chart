@@ -3,7 +3,7 @@
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: aws-creds
+  name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
   namespace: {{ .Values.pipelineNamespace }}
 spec:
   refreshInterval: 1h
@@ -11,7 +11,7 @@ spec:
     name: {{ .Values.externalSecrets.secretStore.name }}
     kind: {{ .Values.externalSecrets.secretStore.kind }}
   target:
-    name: aws-creds
+    name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
     creationPolicy: Owner
     template:
       engineVersion: v2
@@ -22,6 +22,6 @@ spec:
         aws_secret_access_key: '{{ "{{" }} .AWS_SECRET_ACCESS_KEY {{ "}}" }}'
   dataFrom:
   - extract:
-      key: secret/data/hub/aws
+      key: {{ .Values.externalSecrets.awsCreds.key }}
 ---
 #TODO create for gcp, azure

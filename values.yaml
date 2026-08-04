@@ -48,6 +48,9 @@ pipelines:
       aws:
         region: us-east-1
         baseDomain: aws.validatedpatterns.io
+        controlPlaneIAMRole: vp-ocp-ControlPlane-Role
+        computeNodeIAMRole: vp-ocp-Worker-Role
+        credentialName: qe-ci-aws-creds
       gcp:
         region: us-central1
         baseDomain: gcp.validatedpatterns.io

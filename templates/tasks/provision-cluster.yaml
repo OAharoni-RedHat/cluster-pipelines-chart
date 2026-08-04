@@ -164,6 +164,11 @@ spec:
 
         mkdir -p "$(workspaces.install-config.path)"
 
+        if [ "${PLATFORM}" = "aws" ]; then
+            compute_iam='iamRole: {{ .Values.pipelines.defaults.platforms.aws.computeNodeIAMRole }}'
+            controlplane_iam='iamRole: {{ .Values.pipelines.defaults.platforms.aws.controlPlaneIAMRole }}'
+        fi
+
         cat > "${INSTALL_CFG}" <<EOF
         apiVersion: v1
         baseDomain: ${BASE_DOMAIN}
@@ -174,6 +179,7 @@ spec:
           replicas: ${WORKER_REPLICAS}
           platform:
             ${PLATFORM}:
+              ${compute_iam}
               type: ${WORKER_TYPE}
         controlPlane:
           architecture: amd64
@@ -182,6 +188,7 @@ spec:
           replicas: ${CP_REPLICAS}
           platform:
             ${PLATFORM}:
+              ${controlplane_iam}
               type: ${CP_TYPE}
         metadata:
           name: ${CLUSTER_NAME}
@@ -203,6 +210,7 @@ spec:
             cat >> "${INSTALL_CFG}" <<EOF
           aws:
             region: ${CLOUD_REGION}
+            userTags: { 'owner': "QE-CI" }
         EOF
             ;;
           gcp)
@@ -313,7 +321,7 @@ spec:
             cat >> "${OUT}" <<EOF
             aws:
               credentialsSecretRef:
-                name: aws-creds
+                name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
               region: ${CLOUD_REGION}
         EOF
             ;;

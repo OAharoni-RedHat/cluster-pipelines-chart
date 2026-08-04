@@ -10,9 +10,9 @@ spec:
   workspaces:
     - name: must-gather
   volumes:
-  - name: aws-creds
+  - name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
     secret:
-      secretName: aws-creds
+      secretName: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
   params:
     - name: pipelinerun-id
       type: string
@@ -25,7 +25,7 @@ spec:
     - name: upload-must-gathers
       image: {{ .Values.pipelines.defaults.utilityContainerImg }}
       volumeMounts:
-      - name: aws-creds
+      - name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
         mountPath: /tekton/home/.aws
       script: |
         #!/usr/bin/env bash
