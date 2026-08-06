@@ -117,7 +117,7 @@ Cleanup uses **`destroy-hosted-cluster`** instead of Hive `delete-cluster`.
 Runs after the relevant provision task(s) complete:
 
 1. **`install-pattern`** — Uses kubeconfig for the primary cluster (single: provisioned cluster; multi: **hub**; hosted: hosted cluster). Sets `TARGET_CLUSTERGROUP` from resolved `clusterGroup` (see below). Runs `./pattern.sh make install` in the checked-out repo. Optional pattern **secrets** are mounted as workspaces and copied into the task home directory for `values-secrets.yaml` references.
-2. **`import-spoke`** — **Multi only.** After install on the hub, when install succeeded, runs `./pattern.sh make import-default-spoke` in the pattern repo (hub and spoke kubeconfigs supplied via `HUBCONFIG` / `SPOKECONFIG`).
+2. **`import-spoke`** — **Multi only.** After install on the hub, when install succeeded, runs `./pattern.sh make import-default-spoke` in the pattern repo (hub and spoke kubeconfigs supplied via `VP_HUBCONFIG` / `VP_SPOKECONFIG`).
 3. **`interop-test`** — When install (and on multi, import) succeeded, runs `./pattern.sh make run-ci-tests` with the same `TARGET_CLUSTERGROUP` as install. Skipped with outcome `skipped` if a prior step failed.
 4. **`must-gather-hub`** / **`must-gather-spoke`** — On install or test failure (multi gathers both).
 5. **`upload-must-gather`** — Uploads archives when gather steps succeed.

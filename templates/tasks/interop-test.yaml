@@ -29,9 +29,9 @@ spec:
     - name: run-interop-pattern-test
       image: {{ .Values.pipelines.defaults.utilityContainerImg }}
       env:
-        - name: HUBCONFIG
+        - name: VP_HUBCONFIG
           value: $(workspaces.kubeconfig.path)/$(params.hub-cluster-name)-kubeconfig
-        - name: SPOKECONFIG
+        - name: VP_SPOKECONFIG
           value: $(workspaces.kubeconfig.path)/$(params.spoke-cluster-name)-kubeconfig
         - name: TARGET_CLUSTERGROUP
           value: $(params.target-clustergroup)

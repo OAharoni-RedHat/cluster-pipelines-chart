@@ -26,9 +26,9 @@ spec:
     - name: import-spoke
       image: {{ .Values.pipelines.defaults.utilityContainerImg }}
       env:
-        - name: HUBCONFIG
+        - name: VP_HUBCONFIG
           value: $(workspaces.kubeconfig.path)/$(params.hub-cluster-name)-kubeconfig
-        - name: SPOKECONFIG
+        - name: VP_SPOKECONFIG
           value: $(workspaces.kubeconfig.path)/$(params.spoke-cluster-name)-kubeconfig
       script: |
         #!/usr/bin/env bash
