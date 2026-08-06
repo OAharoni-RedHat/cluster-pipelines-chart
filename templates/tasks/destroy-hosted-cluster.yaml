@@ -8,13 +8,34 @@ metadata:
 spec:
   description: Destroy HyperShift hosted cluster after a successful hcp test run
   params:
-    - name: application
+    - name: cluster-name
       type: string
+      default: ""
+    - name: namespace
+      type: string
+      default: {{ .Values.pipelineNamespace }}
+  workspaces:
+    - name: creds
+      description: Holds generated aws sts creds
   steps:
     - name: destroy-hosted-cluster
       image: {{ .Values.hcpImage | default .Values.toolsImage }}
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
-        # TODO: hcp destroy cluster / pipeline-destroy-hypershift steps
-        echo "TODO: destroy HyperShift cluster for $(params.application)"
+
+        CLUSTER_NAME=$(params.cluster-name)
+        CLUSTER_NAMESPACE=$(params.namespace)
+
+        CREDS_DIR="$(workspaces.creds.path)"
+        STS_CREDS="${CREDS_DIR}/sts-creds.json"
+
+        ROLE_ARN={{ .Values.pipelines.defaults.hcpARN }}
+
+
+        hcp destroy cluster aws \
+          --name ${CLUSTER_NAME} \
+          --namespace ${CLUSTER_NAMESPACE} \
+          --cluster-grace-period 30m \
+          --sts-creds ${STS_CREDS} \
+          --role-arn ${ROLE_ARN}

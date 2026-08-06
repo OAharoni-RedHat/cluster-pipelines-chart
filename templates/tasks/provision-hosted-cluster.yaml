@@ -82,7 +82,7 @@ spec:
     secret:
       secretName: global-pullsecret
   steps:
-    - name: check-existing
+    - name: generate-cluster-name
       image: {{ .Values.toolsImage }}
       script: |
         #!/bin/bash
@@ -124,15 +124,35 @@ spec:
         CLUSTER_NAME="$(params.cluster-base-name)-${PLATFORM}-${VERSION_STRING}-$(params.cluster-role)-$(params.flavor)-${POSTFIX}"
         echo -n "${CLUSTER_NAME}" > "$(results.cluster-name.path)"
 
+    - name: check-existing
+      image: {{ .Values.toolsImage }}
+      results:
+        - name: cluster-exists
+          type: string
+          description: Whether the HostedCluster already exists (true/false)
+      env:
+       - name: CLUSTER_NAME_PATH
+         value: $(results.cluster-name.path)
+      script: |
+        #!/usr/bin/env bash
+        echo "Check exising cluster..."
+        CLUSTER_NAME="$(cat "${CLUSTER_NAME_PATH}")"
+        CLUSTER_NAMESPACE=$(params.namespace)
 
-        if oc get hostedcluster "${CLUSTER_NAME}" -n clusters &>/dev/null; then
+        if oc get hostedcluster "${CLUSTER_NAME}" -n ${CLUSTER_NAMESPACE} &>/dev/null; then
           echo "HostedCluster ${CLUSTER_NAME} already exists, skipping creation"
-
-          exit 0
+          echo -n "true" > "$(step.results.cluster-exists.path)"
+        else
+          echo "HostedCluster ${CLUSTER_NAME} does not exist, proceeding with creation"
+          echo -n "false" > "$(step.results.cluster-exists.path)"
         fi
 
     - name: generate-sts-creds
       image: {{ .Values.pipelines.defaults.utilityContainerImg }}
+      when:
+        - input: "$(steps.check-existing.results.cluster-exists)"
+          operator: in
+          values: ["false"]
       volumeMounts:
       - name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
         mountPath: /tekton/home/.aws
@@ -153,9 +173,12 @@ spec:
         - name: ocp-version
           value: $(params.ocp-version)
 
-
     - name: create-cluster
       image: {{ .Values.hcpImage }}
+      when:
+        - input: "$(steps.check-existing.results.cluster-exists)"
+          operator: in
+          values: ["false"]
       volumeMounts:
       - name: pull-secret
         mountPath: /tekton/home/.pull-secret
@@ -167,6 +190,7 @@ spec:
         set -euo pipefail
 
         CLUSTER_NAME="$(cat "$(results.cluster-name.path)")"
+        CLUSTER_NAMESPACE=$(params.namespace)
 
         BASE_DOMAIN={{ .Values.pipelines.defaults.platforms.aws.baseDomain | quote }}
         CLOUD_REGION={{ .Values.pipelines.defaults.platforms.aws.region | quote }}
@@ -197,6 +221,7 @@ spec:
 
         hcp create cluster aws \
           --name ${CLUSTER_NAME} \
+          --namespace ${CLUSTER_NAMESPACE} \
           --node-pool-replicas ${WORKER_REPLICAS} \
           --instance-type ${WORKER_TYPE} \
           --infra-id ${CLUSTER_NAME} \
@@ -218,6 +243,8 @@ spec:
 
 
         CLUSTER_NAME=$(cat $(results.cluster-name.path))
+        CLUSTER_NAMESPACE=$(params.namespace)
+
         TIMEOUT=$(params.wait-timeout-minutes)
         TIMEOUT_SECS=$((TIMEOUT * 60))
 
@@ -225,8 +252,8 @@ spec:
 
 
         oc wait hostedcluster/"${CLUSTER_NAME}" \
-          -n "$(params.namespace)" \
-          --for=condition=Ready=True \
+          -n "${CLUSTER_NAMESPACE}" \
+          --for=condition=Available=True \
           --timeout="${TIMEOUT_SECS}s"
 
         echo "Cluster provisioned successfully"
@@ -239,9 +266,10 @@ spec:
 
         # Extract admin kubeconfig
         CLUSTER_NAME=$(cat $(results.cluster-name.path))
+        CLUSTER_NAMESPACE=$(params.namespace)
 
         KUBECONFIG_SECRET=$(oc get hostedcluster "${CLUSTER_NAME}" \
-          -n "$(params.namespace)" \
+          -n "${CLUSTER_NAMESPACE}" \
           -o jsonpath='{.status.kubeconfig.name}' 2>/dev/null || echo "")
 
         # if [ -z "$KUBECONFIG_SECRET" ]; then
@@ -250,26 +278,26 @@ spec:
 
         echo "Extracting kubeconfig from secret ${KUBECONFIG_SECRET}"
         oc get secret "${KUBECONFIG_SECRET}" \
-          -n "$(params.namespace)" \
+          -n "${CLUSTER_NAMESPACE}" \
           -o jsonpath='{.data.kubeconfig}' | base64 -d > $(workspaces.kubeconfig.path)/${CLUSTER_NAME}-kubeconfig
 
         # Extract admin password if available
         PASSWORD_SECRET=$(oc get clusterdeployment "${CLUSTER_NAME}" \
-          -n "$(params.namespace)" \
+          -n "${CLUSTER_NAMESPACE}" \
           -o jsonpath='{.status.kubeadminPassword.name}' 2>/dev/null || echo "")
 
         if [ -n "$PASSWORD_SECRET" ]; then
           oc get secret "${PASSWORD_SECRET}" \
-          -n "$(params.namespace)" \
+          -n "${CLUSTER_NAMESPACE}" \
           -o jsonpath='{.data.password}' | base64 -d > $(workspaces.kubeconfig.path)/${CLUSTER_NAME}-admin-password 2>/dev/null || true
         fi
 
         # Print cluster info
         API_URL=$(oc get clusterdeployment "${CLUSTER_NAME}" \
-          -n "$(params.namespace)" \
+          -n "${CLUSTER_NAMESPACE}" \
           -o jsonpath='{.status.apiURL}' 2>/dev/null || echo "pending")
         CONSOLE_URL=$(oc get clusterdeployment "${CLUSTER_NAME}" \
-          -n "$(params.namespace)" \
+          -n "${CLUSTER_NAMESPACE}" \
           -o jsonpath='{.status.webConsoleURL}' 2>/dev/null || echo "pending")
 
         echo "============================================"

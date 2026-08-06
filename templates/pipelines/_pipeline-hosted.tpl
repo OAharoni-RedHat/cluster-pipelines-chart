@@ -52,6 +52,10 @@ Hosted cluster flavor: HyperShift hosted cluster (after metadata validation).
   taskRef:
     name: destroy-hosted-cluster
   params:
-    - name: application
-      value: {{ .patternName | quote }}
+    - name: cluster-name
+      value: $(tasks.provision-hosted-cluster.results.cluster-name)
+  workspaces:
+    - name: creds
+      workspace: shared-data
+      subPath: creds
 {{- end }}
