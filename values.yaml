@@ -82,19 +82,22 @@ pipelines:
         - cidr: 10.0.0.0/16
       serviceNetwork:
         - 172.30.0.0/16
-    mustGatherImg: quay.io/hybridcloudpatterns/must-gather
-    utilityContainerImg: quay.io/aeros/utility-container:import_test
+    mustGatherImg: quay.io/validatedpatterns/must-gather
+    utilityContainerImg: quay.io/validatedpatterns/utility-container
+    # Tekton per-task timeout for provision-* pipeline tasks (Hive wait can run ~90m).
+    provisionTaskTimeout: 2h
+    hcpARN: arn:aws:iam::296267305927:role/hypershift_cli_role
 
   patterns:
     # These are the maintained tier
     mcg:
-      repo: https://github.com/darkdoc/multicloud-gitops.git
-      revision: pipeline_test
+      repo: https://github.com/validatedpatterns/multicloud-gitops.git
       flavors:
         single:
           clusterGroup: standalone
         multi:
-        hosted: # not yet implemented
+        hosted:
+          clusterGroup: standalone
     ansible-edge:
       repo: https://github.com/darkdoc/ansible-edge-gitops.git
       revision: pipeline_test
