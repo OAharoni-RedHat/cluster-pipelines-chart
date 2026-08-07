@@ -90,6 +90,22 @@ qeCIPipelines:
         - cidr: 10.0.0.0/16
       serviceNetwork:
         - 172.30.0.0/16
+      multiDr:
+        hub:
+          clusterNetworkCidr: 10.128.0.0/14
+          clusterHostPrefix: 23
+          machineNetworkCidr: 10.0.0.0/16
+          serviceNetworkCidr: 172.30.0.0/16
+        spokePrimary:
+          clusterNetworkCidr: 10.132.0.0/14
+          clusterHostPrefix: 23
+          machineNetworkCidr: 10.1.0.0/16
+          serviceNetworkCidr: 172.31.0.0/16
+        spokeSecondary:
+          clusterNetworkCidr: 10.136.0.0/14
+          clusterHostPrefix: 23
+          machineNetworkCidr: 10.2.0.0/16
+          serviceNetworkCidr: 172.32.0.0/16
     mustGatherImg: quay.io/validatedpatterns/must-gather
     utilityContainerImg: quay.io/validatedpatterns/utility-container
     # Tekton per-task timeout for provision-* pipeline tasks (oc wait on clusterdeployment/hostedcluster).
@@ -119,6 +135,17 @@ qeCIPipelines:
         - aeg-secret-values-file # oc create secret generic aeg-secret-values-file  -n vp-qe-ci --from-file=values-secret.yaml=aeg-qe-values-secret.yaml
         - aeg-aap-manifest-file  # oc create secret generic aeg-aap-manifest-file -n vp-qe-ci --from-file=aap_manifest.zip=/home/aeros/Downloads/manifest_vp-aeros_20260709T084257Z.zip
         - aeg-aap-ssh-file       # oc create secret generic aeg-aap-ssh-file -n vp-qe-ci --from-file=id_rsa=aeg-qe-ssh --from-file=id_rsa.pub=aeg-qe-ssh.pub
+
+    ramendr:
+      repo: https://github.com/validatedpatterns/ramendr-starter-kit.git
+      revision: main
+      platforms:
+        aws:
+      flavors:
+        multi-dr:
+          clusterGroup: hub
+      secrets:
+        - ramendr-secret-values-file
 
     # industrial-edge:
     #   repo: https://github.com/validatedpatterns/industrial-edge.git

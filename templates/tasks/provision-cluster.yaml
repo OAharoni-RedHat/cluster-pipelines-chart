@@ -70,6 +70,18 @@ spec:
         type:
           type: string
           default: ""
+    - name: cluster-network-cidr
+      type: string
+      default: "{{ (index .Values.pipelines.defaults.networking.clusterNetwork 0).cidr }}"
+    - name: cluster-host-prefix
+      type: string
+      default: "{{ (index .Values.pipelines.defaults.networking.clusterNetwork 0).hostPrefix }}"
+    - name: machine-network-cidr
+      type: string
+      default: "{{ (index .Values.pipelines.defaults.networking.machineNetwork 0).cidr }}"
+    - name: service-network-cidr
+      type: string
+      default: "{{ index .Values.pipelines.defaults.networking.serviceNetwork 0 }}"
 
   results:
     - name: cluster-name
@@ -204,13 +216,13 @@ spec:
           name: ${CLUSTER_NAME}
         networking:
           clusterNetwork:
-          - cidr: {{ (index .Values.qeCIPipelines.defaults.networking.clusterNetwork 0).cidr }}
-            hostPrefix: {{ (index .Values.qeCIPipelines.defaults.networking.clusterNetwork 0).hostPrefix }}
+          - cidr: $(params.cluster-network-cidr)
+            hostPrefix: $(params.cluster-host-prefix)
           machineNetwork:
-          - cidr: {{ (index .Values.qeCIPipelines.defaults.networking.machineNetwork 0).cidr }}
+          - cidr: $(params.machine-network-cidr)
           networkType: {{ .Values.qeCIPipelines.defaults.networking.networkType }}
           serviceNetwork:
-          - {{ index .Values.qeCIPipelines.defaults.networking.serviceNetwork 0 }}
+          - $(params.service-network-cidr)
         pullSecret: ""
         platform:
         EOF

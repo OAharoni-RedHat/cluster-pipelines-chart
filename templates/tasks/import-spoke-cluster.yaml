@@ -28,7 +28,7 @@ spec:
       env:
         - name: VP_HUBCONFIG
           value: $(workspaces.kubeconfig.path)/$(params.hub-cluster-name)-kubeconfig
-        - name: VP_SPOKECONFIG
+        - name: VP_OCP_PRIMARY
           value: $(workspaces.kubeconfig.path)/$(params.spoke-cluster-name)-kubeconfig
       script: |
         #!/usr/bin/env bash

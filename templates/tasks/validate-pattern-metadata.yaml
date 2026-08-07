@@ -139,7 +139,7 @@ spec:
             fi
         fi
 
-        if [ "${FLAVOR}" = "multi" ]; then
+        if [ "${FLAVOR}" = "multi" ] || [ "${FLAVOR}" = "multi-dr" ]; then
             SPOKE_SUPPORT=$(yq '.extra_features.spoke_support // false' "${PATTERN_METADATA}")
 
             if [ "${SPOKE_SUPPORT}" = "false" ]; then

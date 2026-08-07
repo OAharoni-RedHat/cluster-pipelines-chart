@@ -49,6 +49,10 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     {{- else if eq .flavorName "multi" }}
     - provision-hub
     - provision-spoke
+    {{- else if eq .flavorName "multi-dr" }}
+    - provision-hub
+    - provision-spoke-primary
+    - provision-spoke-secondary
     {{- else }}
     - provision-hosted-cluster
     {{- end }}
@@ -58,7 +62,7 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     {{- if eq .flavorName "single" }}
     - name: cluster-name
       value: $(tasks.provision-cluster.results.cluster-name)
-    {{- else if eq .flavorName "multi" }}
+    {{- else if or (eq .flavorName "multi") (eq .flavorName "multi-dr") }}
     - name: cluster-name
       value: $(tasks.provision-hub.results.cluster-name)
     {{- else }}
@@ -99,12 +103,56 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     - name: kubeconfig
       workspace: shared-data
       subPath: kubeconfig
+{{- else if eq .flavorName "multi-dr" }}
+- name: import-spoke-primary
+  onError: continue
+  runAfter:
+    - install-pattern
+  taskRef:
+    name: import-spoke-cluster
+  params:
+    - name: install-status
+      value: $(tasks.install-pattern.results.outcome)
+    - name: hub-cluster-name
+      value: $(tasks.provision-hub.results.cluster-name)
+    - name: spoke-cluster-name
+      value: $(tasks.provision-spoke-primary.results.cluster-name)
+  workspaces:
+    - name: pattern-repo
+      workspace: shared-data
+      subPath: pattern-repo
+    - name: kubeconfig
+      workspace: shared-data
+      subPath: kubeconfig
+- name: import-spoke-secondary
+  onError: continue
+  runAfter:
+    - install-pattern
+  taskRef:
+    name: import-spoke-cluster
+  params:
+    - name: install-status
+      value: $(tasks.install-pattern.results.outcome)
+    - name: hub-cluster-name
+      value: $(tasks.provision-hub.results.cluster-name)
+    - name: spoke-cluster-name
+      value: $(tasks.provision-spoke-secondary.results.cluster-name)
+  workspaces:
+    - name: pattern-repo
+      workspace: shared-data
+      subPath: pattern-repo
+    - name: kubeconfig
+      workspace: shared-data
+      subPath: kubeconfig
 {{- end }}
 - name: interop-test
   onError: continue
   runAfter:
     {{- if eq .flavorName "multi" }}
     - import-spoke
+    {{- else if eq .flavorName "multi-dr" }}
+    - import-spoke-primary
+    - import-spoke-secondary
     {{- else }}
     - install-pattern
     {{- end }}
@@ -119,6 +167,13 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
       value: $(tasks.provision-hub.results.cluster-name)
     - name: spoke-cluster-name
       value: $(tasks.provision-spoke.results.cluster-name)
+    {{- else if eq .flavorName "multi-dr" }}
+    - name: hub-cluster-name
+      value: $(tasks.provision-hub.results.cluster-name)
+    - name: spoke-cluster-name
+      value: $(tasks.provision-spoke-primary.results.cluster-name)
+    - name: spoke-secondary-cluster-name
+      value: $(tasks.provision-spoke-secondary.results.cluster-name)
     {{- else }}
     - name: hub-cluster-name
       value: $(tasks.provision-hosted-cluster.results.cluster-name)
@@ -128,6 +183,8 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     - name: install-status
     {{- if eq .flavorName "multi" }}
       value: $(tasks.import-spoke.results.import-status)
+    {{- else if eq .flavorName "multi-dr" }}
+      value: $(tasks.import-spoke-primary.results.import-status)
     {{- else }}
       value: $(tasks.install-pattern.results.outcome)
     {{- end }}
@@ -149,7 +206,7 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     - name: cluster-name
     {{- if eq .flavorName "single" }}
       value: $(tasks.provision-cluster.results.cluster-name)
-    {{- else if eq .flavorName "multi" }}
+    {{- else if or (eq .flavorName "multi") (eq .flavorName "multi-dr") }}
       value: $(tasks.provision-hub.results.cluster-name)
     {{- else }}
       value: $(tasks.provision-hosted-cluster.results.cluster-name)
@@ -179,12 +236,50 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     - name: must-gather
       workspace: shared-data
       subPath: must-gather
+{{- else if eq .flavorName "multi-dr" }}
+- name: must-gather-spoke-primary
+  runAfter:
+    - interop-test
+  when:
+    - cel: "'$(tasks.install-pattern.results.outcome)' == 'failed' || '$(tasks.interop-test.results.outcome)' == 'failed'"
+  taskRef:
+    name: must-gather
+  params:
+    - name: cluster-name
+      value: $(tasks.provision-spoke-primary.results.cluster-name)
+  workspaces:
+    - name: kubeconfig
+      workspace: shared-data
+      subPath: kubeconfig
+    - name: must-gather
+      workspace: shared-data
+      subPath: must-gather
+- name: must-gather-spoke-secondary
+  runAfter:
+    - interop-test
+  when:
+    - cel: "'$(tasks.install-pattern.results.outcome)' == 'failed' || '$(tasks.interop-test.results.outcome)' == 'failed'"
+  taskRef:
+    name: must-gather
+  params:
+    - name: cluster-name
+      value: $(tasks.provision-spoke-secondary.results.cluster-name)
+  workspaces:
+    - name: kubeconfig
+      workspace: shared-data
+      subPath: kubeconfig
+    - name: must-gather
+      workspace: shared-data
+      subPath: must-gather
 {{- end }}
 - name: upload-must-gather
   runAfter:
     - must-gather-hub
 {{- if eq .flavorName "multi" }}
     - must-gather-spoke
+{{- else if eq .flavorName "multi-dr" }}
+    - must-gather-spoke-primary
+    - must-gather-spoke-secondary
 {{- end }}
   when:
     - input: $(tasks.must-gather-hub.results.outcome)
@@ -192,6 +287,13 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
       values: ["success"]
 {{- if eq .flavorName "multi" }}
     - input: $(tasks.must-gather-spoke.results.outcome)
+      operator: in
+      values: ["success"]
+{{- else if eq .flavorName "multi-dr" }}
+    - input: $(tasks.must-gather-spoke-primary.results.outcome)
+      operator: in
+      values: ["success"]
+    - input: $(tasks.must-gather-spoke-secondary.results.outcome)
       operator: in
       values: ["success"]
 {{- end }}
@@ -241,7 +343,7 @@ Shared finally tasks (not flavor-specific cleanup).
     - name: exact-ocp-version
     {{- if eq .flavorName "single" }}
       value: $(tasks.provision-cluster.results.exact-ocp-version)
-    {{- else if eq .flavorName "multi" }}
+    {{- else if or (eq .flavorName "multi") (eq .flavorName "multi-dr") }}
       value: $(tasks.provision-hub.results.exact-ocp-version)
     {{- else }}
       value: $(tasks.provision-hosted-cluster.results.exact-ocp-version)
