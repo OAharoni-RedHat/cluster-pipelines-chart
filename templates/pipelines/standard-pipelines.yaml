@@ -45,6 +45,13 @@ spec:
     Pattern test pipeline for {{ $patternName }} on {{ $platformName }} (OCP {{ $ocpVersion }}, {{ $flavorName }}).
     Checkout and validate metadata, provision, install, test, cleanup.
   params:
+      # This is some workaround for an issue where pvc created from VolumeClaimTemplate in the UI is not bound
+      # because of the missing storage class
+    - name: STORAGE_CLASS
+      type: string
+      description: >
+        Do not change this, this is needed as a workaround.
+      default: gp3-csi
     - name: pattern-repo-url
       type: string
       description: Git URL of the pattern to test (override for forks)
