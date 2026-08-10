@@ -111,6 +111,74 @@ Sources pattern platforms or defaults.platforms.
 {{- end }}
 
 {{/*
+Platform allowlist for a flavor (list or map of platform names).
+
+Priority:
+1. Pattern flavor config: pipelines.patterns.*.flavors.<flavor>.platforms
+2. Default flavor config: pipelines.defaults.flavors.<flavor>.platforms
+3. Empty → no flavor restriction (use all pattern/default platforms)
+*/}}
+{{- define "pipelines.flavorPlatformAllowlist" -}}
+{{- $root := .root -}}
+{{- $flavorName := .flavorName -}}
+{{- $flavorCfg := default dict .flavorCfg -}}
+{{- $allow := dict -}}
+{{- $source := dict -}}
+{{- if $flavorCfg.platforms -}}
+  {{- $source = $flavorCfg.platforms -}}
+{{- else -}}
+  {{- with $root.Values.pipelines.defaults.flavors -}}
+    {{- if kindIs "map" . -}}
+      {{- with index . $flavorName -}}
+        {{- if .platforms -}}
+          {{- $source = .platforms -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- if $source -}}
+  {{- if kindIs "map" $source -}}
+    {{- range $name, $_ := $source -}}
+      {{- $_ := set $allow $name true -}}
+    {{- end -}}
+  {{- else if kindIs "slice" $source -}}
+    {{- range $source -}}
+      {{- $_ := set $allow . true -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- toJson $allow -}}
+{{- end }}
+
+{{/*
+Supported platforms for one flavor in the pipeline matrix.
+
+Starts from tekton.supportedPlatforms, then intersects with the flavor
+platform allowlist when pipelines.defaults.flavors.<flavor>.platforms
+(or the pattern-level flavor override) is set.
+*/}}
+{{- define "pipelines.supportedPlatformsForFlavor" -}}
+{{- $base := include "tekton.supportedPlatforms" (dict "root" .root "app" .app) | fromJson -}}
+{{- $allow := include "pipelines.flavorPlatformAllowlist" (dict
+      "root" .root
+      "flavorName" .flavorName
+      "flavorCfg" .flavorCfg
+    ) | fromJson -}}
+{{- $platforms := dict -}}
+{{- if $allow -}}
+  {{- range $name, $cfg := $base -}}
+    {{- if hasKey $allow $name -}}
+      {{- $_ := set $platforms $name $cfg -}}
+    {{- end -}}
+  {{- end -}}
+{{- else -}}
+  {{- $platforms = $base -}}
+{{- end -}}
+{{- toJson $platforms -}}
+{{- end }}
+
+{{/*
 Kubernetes Secret name from a pipelines.patterns.*.secrets entry.
 */}}
 {{- define "pipelines.patternSecretName" -}}

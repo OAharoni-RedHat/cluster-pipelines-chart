@@ -1,20 +1,22 @@
 {{- $_ := include "pipelines.validatePatternSecrets" $ }}
 {{- range $patternName, $app := .Values.pipelines.patterns }}
-  {{- $platforms := include "tekton.supportedPlatforms" (dict
-        "root" $
-        "app" $app
-      ) | fromJson }}
   {{- $flavors := include "pipelines.supportedFlavors" (dict
         "root" $
         "app" $app
       ) | fromJson }}
-  {{- range $platformName, $_ := $platforms }}
-    {{- $ocpVersions := include "tekton.supportedOcpVersions" (dict
+  {{- $ocpVersions := include "tekton.supportedOcpVersions" (dict
+        "root" $
+        "app" $app
+      ) | fromJson }}
+  {{- range $flavorName, $flavorCfg := $flavors }}
+    {{- $platforms := include "pipelines.supportedPlatformsForFlavor" (dict
           "root" $
           "app" $app
+          "flavorName" $flavorName
+          "flavorCfg" $flavorCfg
         ) | fromJson }}
-    {{- range $ocpVersion, $_ := $ocpVersions }}
-      {{- range $flavorName, $flavorCfg := $flavors }}
+    {{- range $platformName, $_ := $platforms }}
+      {{- range $ocpVersion, $_ := $ocpVersions }}
         {{- $ctx := dict
               "root" $
               "app" $app
