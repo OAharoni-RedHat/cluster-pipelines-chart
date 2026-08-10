@@ -329,7 +329,7 @@ spec:
             cat >> "${OUT}" <<EOF
             gcp:
               credentialsSecretRef:
-                name: gcp-creds
+                name: {{ .Values.pipelines.defaults.platforms.gcp.credentialName }}
         EOF
             ;;
           azure)

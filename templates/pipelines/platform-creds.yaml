@@ -24,4 +24,27 @@ spec:
   - extract:
       key: {{ .Values.externalSecrets.awsCreds.key }}
 ---
-#TODO create for gcp, azure
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.pipelines.defaults.platforms.gcp.credentialName }}
+  namespace: {{ .Values.pipelineNamespace }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: {{ .Values.externalSecrets.secretStore.name }}
+    kind: {{ .Values.externalSecrets.secretStore.kind }}
+  target:
+    name: {{ .Values.pipelines.defaults.platforms.gcp.credentialName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      mergePolicy: Replace
+      type: Opaque
+      data:
+        osServiceAccount.json: '{{ "{{" }} .GCLOUD_JSON {{ "}}" }}'
+  dataFrom:
+  - extract:
+      key: {{ .Values.externalSecrets.gcpCreds.key }}
+---
+#TODO create for azure
