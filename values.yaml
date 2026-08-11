@@ -87,7 +87,7 @@ pipelines:
         - 172.30.0.0/16
     mustGatherImg: quay.io/validatedpatterns/must-gather
     utilityContainerImg: quay.io/validatedpatterns/utility-container
-    # Tekton per-task timeout for provision-* pipeline tasks (Hive wait can run ~90m).
+    # Tekton per-task timeout for provision-* pipeline tasks (oc wait on clusterdeployment/hostedcluster).
     provisionTaskTimeout: 2h
     hcpARN: arn:aws:iam::296267305927:role/hypershift_cli_role
 

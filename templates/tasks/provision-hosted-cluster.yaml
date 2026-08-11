@@ -26,9 +26,9 @@ spec:
     - name: ocp-version
       type: string
       default: ""
-    - name: wait-timeout-minutes
+    - name: wait-timeout
       type: string
-      default: "90"
+      default: {{ .Values.pipelines.defaults.provisionTaskTimeout }}
     - name: ssh-public-key
       type: string
       default: ""
@@ -245,16 +245,15 @@ spec:
         CLUSTER_NAME=$(cat $(results.cluster-name.path))
         CLUSTER_NAMESPACE=$(params.namespace)
 
-        TIMEOUT=$(params.wait-timeout-minutes)
-        TIMEOUT_SECS=$((TIMEOUT * 60))
+        TIMEOUT=$(params.wait-timeout)
 
-        echo "Waiting up to ${TIMEOUT}m for HostedCluster ${CLUSTER_NAME} to be provisioned..."
+        echo "Waiting up to ${TIMEOUT} for HostedCluster ${CLUSTER_NAME} to be provisioned..."
 
 
         oc wait hostedcluster/"${CLUSTER_NAME}" \
           -n "${CLUSTER_NAMESPACE}" \
           --for=condition=Available=True \
-          --timeout="${TIMEOUT_SECS}s"
+          --timeout="${TIMEOUT}"
 
         echo "Cluster provisioned successfully"
 

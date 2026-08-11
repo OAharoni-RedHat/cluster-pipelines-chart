@@ -25,7 +25,6 @@
               "ocpVersion" $ocpVersion
               "flavorName" $flavorName
               "flavorCfg" $flavorCfg
-              "waitTimeoutMinutes" "90"
               "repo" (default "" $app.repo)
               "pipelineNamespace" $.Values.pipelineNamespace
             }}
