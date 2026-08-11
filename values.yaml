@@ -56,10 +56,11 @@ pipelines:
         baseDomain: gcp.validatedpatterns.io
         projectId: rh-patterns
         credentialName: qe-ci-gcp-creds
-      # azure:
-      #   region: eastus
-      #   baseDomain: azure.validatedpatterns.io
-      #   resourceGroup: ""
+      azure:
+        region: eastus
+        baseDomain: azure.validatedpatterns.io
+        baseDomainResourceGroup: os4-common
+        credentialName: qe-ci-azure-creds
     ocp_versions:
       - "4.18"
       - "4.20"
@@ -74,7 +75,7 @@ pipelines:
         clusterGroup: hub
       hosted: # This will be just a single hub cluster setup with hcp hosted clusters
         clusterGroup: hub
-        platforms:
+        platforms: # Only aws supports hosted cluster deployments
           - aws
     networking:
       networkType: OVNKubernetes

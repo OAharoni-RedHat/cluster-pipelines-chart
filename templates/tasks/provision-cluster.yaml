@@ -152,7 +152,7 @@ spec:
             GCP_PROJECT={{ default "" $cfg.projectId | quote }}
             {{- end }}
             {{- if eq $name "azure" }}
-            AZ_RG={{ default "" $cfg.resourceGroup | quote }}
+            AZ_RG={{ default "" $cfg.baseDomainResourceGroup | quote }}
             {{- end }}
             ;;
         {{- end }}
@@ -164,9 +164,17 @@ spec:
 
         mkdir -p "$(workspaces.install-config.path)"
 
+        compute_iam=''
+        controlplane_iam=''
+        azure_identity=''
+
         if [ "${PLATFORM}" = "aws" ]; then
             compute_iam='iamRole: {{ .Values.pipelines.defaults.platforms.aws.computeNodeIAMRole }}'
             controlplane_iam='iamRole: {{ .Values.pipelines.defaults.platforms.aws.controlPlaneIAMRole }}'
+        fi
+
+        if [ "${PLATFORM}" = "azure" ]; then
+            azure_identity='identity: { type: None}'
         fi
 
         cat > "${INSTALL_CFG}" <<EOF
@@ -180,6 +188,7 @@ spec:
           platform:
             ${PLATFORM}:
               ${compute_iam}
+              ${azure_identity}
               type: ${WORKER_TYPE}
         controlPlane:
           architecture: amd64
@@ -189,6 +198,7 @@ spec:
           platform:
             ${PLATFORM}:
               ${controlplane_iam}
+              ${azure_identity}
               type: ${CP_TYPE}
         metadata:
           name: ${CLUSTER_NAME}
@@ -224,7 +234,6 @@ spec:
             cat >> "${INSTALL_CFG}" <<EOF
           azure:
             baseDomainResourceGroupName: ${AZ_RG}
-            cloudName: AzurePublicCloud
             region: ${CLOUD_REGION}
         EOF
             ;;
@@ -274,7 +283,7 @@ spec:
             BASE_DOMAIN={{ $cfg.baseDomain | quote }}
             CLOUD_REGION={{ $cfg.region | quote }}
             {{- if eq $name "azure" }}
-            AZ_RG={{ default "" $cfg.resourceGroup | quote }}
+            AZ_RG={{ default "" $cfg.baseDomainResourceGroup | quote }}
             {{- end }}
             ;;
         {{- end }}
@@ -330,15 +339,16 @@ spec:
             gcp:
               credentialsSecretRef:
                 name: {{ .Values.pipelines.defaults.platforms.gcp.credentialName }}
+              region: ${CLOUD_REGION}
         EOF
             ;;
           azure)
             cat >> "${OUT}" <<EOF
             azure:
               credentialsSecretRef:
-                name: azure-creds
+                name: {{ .Values.pipelines.defaults.platforms.azure.credentialName }}
+              region: ${CLOUD_REGION}
               baseDomainResourceGroupName: ${AZ_RG}
-              cloudName: AzurePublicCloud
         EOF
             ;;
         esac
