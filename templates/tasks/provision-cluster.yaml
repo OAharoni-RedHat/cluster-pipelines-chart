@@ -96,6 +96,8 @@ spec:
     - name: kubeconfig
     - name: install-config
       description: Holds generated install-config.yaml and clusterdeployment.yaml
+  stepTemplate:
+    imagePullPolicy: IfNotPresent
   steps:
     - name: get-openshift-version
       ref:

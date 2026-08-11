@@ -21,6 +21,7 @@ Each cluster receives non-overlapping CIDRs to support Submariner and ODF multic
 - name: provision-hub
   runAfter:
     - validate-pattern-metadata
+  retries: 3
   timeout: {{ default "2h" .root.Values.pipelines.defaults.provisionTaskTimeout | quote }}
   taskRef:
     name: provision-cluster
@@ -50,6 +51,7 @@ Each cluster receives non-overlapping CIDRs to support Submariner and ODF multic
 - name: provision-spoke-primary
   runAfter:
     - validate-pattern-metadata
+  retries: 3
   timeout: {{ default "2h" .root.Values.pipelines.defaults.provisionTaskTimeout | quote }}
   taskRef:
     name: provision-cluster
@@ -79,6 +81,7 @@ Each cluster receives non-overlapping CIDRs to support Submariner and ODF multic
 - name: provision-spoke-secondary
   runAfter:
     - validate-pattern-metadata
+  retries: 3
   timeout: {{ default "2h" .root.Values.pipelines.defaults.provisionTaskTimeout | quote }}
   taskRef:
     name: provision-cluster
