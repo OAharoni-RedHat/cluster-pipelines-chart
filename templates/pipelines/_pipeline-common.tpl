@@ -71,6 +71,12 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     {{- end }}
     - name: target-clustergroup
       value: {{ include "qeCIPipelines.targetClusterGroup" . | quote }}
+    {{- if eq .flavorName "multi-dr" }}
+    - name: spoke-primary-cluster-name
+      value: $(tasks.provision-spoke-primary.results.cluster-name)
+    - name: spoke-secondary-cluster-name
+      value: $(tasks.provision-spoke-secondary.results.cluster-name)
+    {{- end }}
   workspaces:
     - name: pattern-repo
       workspace: shared-data
@@ -144,6 +150,24 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     - name: kubeconfig
       workspace: shared-data
       subPath: kubeconfig
+- name: wait-hub-dr
+  onError: continue
+  runAfter:
+    - import-spoke-primary
+    - import-spoke-secondary
+  taskRef:
+    name: wait-hub-dr
+  params:
+    - name: hub-cluster-name
+      value: $(tasks.provision-hub.results.cluster-name)
+    - name: import-primary-status
+      value: $(tasks.import-spoke-primary.results.import-status)
+    - name: import-secondary-status
+      value: $(tasks.import-spoke-secondary.results.import-status)
+  workspaces:
+    - name: kubeconfig
+      workspace: shared-data
+      subPath: kubeconfig
 {{- end }}
 - name: interop-test
   onError: continue
@@ -151,8 +175,7 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     {{- if eq .flavorName "multi" }}
     - import-spoke
     {{- else if eq .flavorName "multi-dr" }}
-    - import-spoke-primary
-    - import-spoke-secondary
+    - wait-hub-dr
     {{- else }}
     - install-pattern
     {{- end }}
@@ -184,7 +207,7 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     {{- if eq .flavorName "multi" }}
       value: $(tasks.import-spoke.results.import-status)
     {{- else if eq .flavorName "multi-dr" }}
-      value: $(tasks.import-spoke-primary.results.import-status)
+      value: $(tasks.wait-hub-dr.results.outcome)
     {{- else }}
       value: $(tasks.install-pattern.results.outcome)
     {{- end }}

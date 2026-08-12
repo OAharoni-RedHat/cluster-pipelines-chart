@@ -16,6 +16,29 @@ spec:
     - name: target-clustergroup
       type: string
       default: hub
+    - name: spoke-primary-cluster-name
+      type: string
+      default: ""
+      description: >
+        Actual cluster name for the primary spoke (from provision step).
+        When set together with spoke-secondary-cluster-name, their kubeconfigs
+        are injected into values-secret.yaml before pattern install.
+    - name: spoke-secondary-cluster-name
+      type: string
+      default: ""
+      description: Actual cluster name for the secondary spoke (from provision step).
+    - name: spoke-primary-secret-name
+      type: string
+      default: "ocp-primary"
+      description: >
+        Vault secret key prefix for the primary spoke kubeconfig.
+        Must match clusterOverrides.primary.name in the pattern values.
+    - name: spoke-secondary-secret-name
+      type: string
+      default: "ocp-secondary"
+      description: >
+        Vault secret key prefix for the secondary spoke kubeconfig.
+        Must match clusterOverrides.secondary.name in the pattern values.
   workspaces:
     - name: pattern-repo
     - name: kubeconfig
@@ -58,6 +81,56 @@ spec:
             chmod 600 "${dest}"
           done
         done
+
+        # Inject spoke kubeconfigs into values-secret.yaml for BYOC multi-spoke patterns
+        SPOKE_PRIMARY="$(params.spoke-primary-cluster-name)"
+        SPOKE_SECONDARY="$(params.spoke-secondary-cluster-name)"
+        if [ -n "${SPOKE_PRIMARY}" ] && [ -n "${SPOKE_SECONDARY}" ]; then
+          PRIMARY_KC="$(workspaces.kubeconfig.path)/${SPOKE_PRIMARY}-kubeconfig"
+          SECONDARY_KC="$(workspaces.kubeconfig.path)/${SPOKE_SECONDARY}-kubeconfig"
+          PRIMARY_SECRET_NAME="$(params.spoke-primary-secret-name)_cluster_kubeconfig"
+          SECONDARY_SECRET_NAME="$(params.spoke-secondary-secret-name)_cluster_kubeconfig"
+
+          if [ ! -f "${PRIMARY_KC}" ] || [ ! -f "${SECONDARY_KC}" ]; then
+            echo "ERROR: spoke kubeconfig(s) not found in workspace" >&2
+            exit 1
+          fi
+
+          # Locate the values-secret file in HOME_DIR regardless of its exact filename.
+          # The validated patterns framework expects ~/values-secret.yaml; create one if absent.
+          VALUES_SECRET=$(find "${HOME_DIR}" -maxdepth 1 -name "*values-secret*" -type f | head -1)
+          if [ -z "${VALUES_SECRET}" ]; then
+            VALUES_SECRET="${HOME_DIR}/values-secret.yaml"
+            echo "No values-secret file found in ${HOME_DIR}; creating ${VALUES_SECRET}"
+            printf 'version: "2.0"\nsecrets: []\n' > "${VALUES_SECRET}"
+          fi
+
+          echo "Injecting spoke kubeconfigs into ${VALUES_SECRET}"
+          printf '%s\n' \
+            'import os, yaml' \
+            'vs_path = os.environ["VS_PATH"]' \
+            'primary_kc_path = os.environ["PRIMARY_KC_PATH"]' \
+            'secondary_kc_path = os.environ["SECONDARY_KC_PATH"]' \
+            'primary_name = os.environ["PRIMARY_NAME"]' \
+            'secondary_name = os.environ["SECONDARY_NAME"]' \
+            'with open(vs_path) as f:' \
+            '    vs = yaml.safe_load(f) or {}' \
+            'vs.setdefault("secrets", [])' \
+            'vs["secrets"] = [s for s in vs["secrets"] if s.get("name") not in (primary_name, secondary_name)]' \
+            'for name, kc_path in [(primary_name, primary_kc_path), (secondary_name, secondary_kc_path)]:' \
+            '    with open(kc_path) as f:' \
+            '        vs["secrets"].append({"name": name, "fields": [{"name": "kubeconfig", "value": f.read()}]})' \
+            'with open(vs_path, "w") as f:' \
+            '    yaml.dump(vs, f, default_flow_style=False, allow_unicode=True)' \
+            'print("Injected:", primary_name, secondary_name)' \
+            > /tmp/inject_kubeconfig.py
+          VS_PATH="${VALUES_SECRET}" \
+          PRIMARY_KC_PATH="${PRIMARY_KC}" \
+          SECONDARY_KC_PATH="${SECONDARY_KC}" \
+          PRIMARY_NAME="${PRIMARY_SECRET_NAME}" \
+          SECONDARY_NAME="${SECONDARY_SECRET_NAME}" \
+          python3 /tmp/inject_kubeconfig.py
+        fi
 
         cd $(workspaces.pattern-repo.path)
 

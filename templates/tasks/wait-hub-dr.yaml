@@ -1,0 +1,107 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: wait-hub-dr
+  namespace: {{ .Values.pipelineNamespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: Wait for hub-side DR resources (DRPolicy, DRCluster, DRPC) to converge after spoke import
+  params:
+    - name: hub-cluster-name
+      type: string
+    - name: import-primary-status
+      type: string
+      default: "success"
+    - name: import-secondary-status
+      type: string
+      default: "success"
+    - name: timeout
+      type: string
+      default: "3600"
+  workspaces:
+    - name: kubeconfig
+  results:
+    - name: outcome
+  steps:
+    - name: wait-dr-resources
+      image: {{ .Values.pipelines.defaults.utilityContainerImg }}
+      env:
+        - name: HUBCONFIG
+          value: $(workspaces.kubeconfig.path)/$(params.hub-cluster-name)-kubeconfig
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        unset KUBERNETES_SERVICE_HOST
+        trap 'echo -n "failed" > $(results.outcome.path)' ERR
+
+        if [ "$(params.import-primary-status)" != "success" ] || [ "$(params.import-secondary-status)" != "success" ]; then
+          echo "Skipping DR wait: one or both spoke imports did not succeed"
+          echo "  import-primary-status=$(params.import-primary-status)"
+          echo "  import-secondary-status=$(params.import-secondary-status)"
+          echo -n "skipped" > $(results.outcome.path)
+          exit 0
+        fi
+
+        TIMEOUT=$(params.timeout)
+        POLL=30
+        elapsed=0
+
+        echo "=== Waiting for DRPolicy to be Validated ==="
+        while [ "$elapsed" -lt "$TIMEOUT" ]; do
+          phase=$(oc --kubeconfig "${HUBCONFIG}" get drpolicy -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "")
+          if [ "$phase" = "Validated" ]; then
+            echo "DRPolicy is Validated"
+            break
+          fi
+          echo "[${elapsed}s] DRPolicy phase: '${phase}', waiting..."
+          sleep "$POLL"
+          elapsed=$((elapsed + POLL))
+        done
+        if [ "$elapsed" -ge "$TIMEOUT" ]; then
+          echo "Timed out waiting for DRPolicy to be Validated"
+          exit 1
+        fi
+
+        elapsed=0
+        echo "=== Waiting for all DRClusters to be Available ==="
+        while [ "$elapsed" -lt "$TIMEOUT" ]; do
+          unavail=$(oc --kubeconfig "${HUBCONFIG}" get drcluster -o json 2>/dev/null | \
+            jq '[.items[] | select(
+              ([.status.conditions[]? | select(.type=="Available" and .status=="True")] | length) == 0
+            )] | length' 2>/dev/null || echo "error")
+          if [ "$unavail" = "0" ]; then
+            echo "All DRClusters are Available"
+            break
+          fi
+          echo "[${elapsed}s] DRClusters not yet Available (${unavail} pending), waiting..."
+          sleep "$POLL"
+          elapsed=$((elapsed + POLL))
+        done
+        if [ "$elapsed" -ge "$TIMEOUT" ]; then
+          echo "Timed out waiting for DRClusters to be Available"
+          exit 1
+        fi
+
+        elapsed=0
+        echo "=== Waiting for all DRPlacementControls to be Available ==="
+        while [ "$elapsed" -lt "$TIMEOUT" ]; do
+          not_ready=$(oc --kubeconfig "${HUBCONFIG}" get drpc -A -o json 2>/dev/null | \
+            jq '[.items[] | select(
+              ([.status.conditions[]? | select(.type=="Available" and .status=="True")] | length) == 0
+            )] | length' 2>/dev/null || echo "error")
+          if [ "$not_ready" = "0" ]; then
+            echo "All DRPlacementControls are Available"
+            break
+          fi
+          echo "[${elapsed}s] DRPCs not yet Available (${not_ready} pending), waiting..."
+          sleep "$POLL"
+          elapsed=$((elapsed + POLL))
+        done
+        if [ "$elapsed" -ge "$TIMEOUT" ]; then
+          echo "Timed out waiting for DRPlacementControls to be Available"
+          exit 1
+        fi
+
+        echo "All hub DR resources are ready"
+        echo -n "success" > $(results.outcome.path)
