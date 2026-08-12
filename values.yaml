@@ -139,6 +139,7 @@ qeCIPipelines:
     ramendr:
       repo: https://github.com/validatedpatterns/ramendr-starter-kit.git
       revision: main
+      awsCredsSecret: qe-ci-aws-creds
       platforms:
         aws:
       flavors:

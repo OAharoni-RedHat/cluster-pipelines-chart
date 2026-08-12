@@ -27,6 +27,13 @@ spec:
       type: string
       default: ""
       description: Actual cluster name for the secondary spoke (from provision step).
+    - name: aws-creds-secret-name
+      type: string
+      default: ""
+      description: >
+        Name of an existing Kubernetes Secret in the pipeline namespace containing
+        aws_access_key_id and aws_secret_access_key. When set, these credentials
+        are injected into values-secret.yaml under the "aws" entry before pattern install.
     - name: spoke-primary-secret-name
       type: string
       default: "ocp-primary"
@@ -130,6 +137,47 @@ spec:
           PRIMARY_NAME="${PRIMARY_SECRET_NAME}" \
           SECONDARY_NAME="${SECONDARY_SECRET_NAME}" \
           python3 /tmp/inject_kubeconfig.py
+        fi
+
+        # Inject AWS credentials from an existing cluster secret into values-secret.yaml.
+        # This avoids requiring the user to embed credentials in their values-secret file.
+        AWS_CREDS_SECRET="$(params.aws-creds-secret-name)"
+        if [ -n "${AWS_CREDS_SECRET}" ]; then
+          VALUES_SECRET=$(find "${HOME_DIR}" -maxdepth 1 -name "*values-secret*" -type f | head -1)
+          if [ -z "${VALUES_SECRET}" ]; then
+            VALUES_SECRET="${HOME_DIR}/values-secret.yaml"
+            printf 'version: "2.0"\nsecrets: []\n' > "${VALUES_SECRET}"
+          fi
+          echo "Injecting AWS credentials from secret ${AWS_CREDS_SECRET} into ${VALUES_SECRET}"
+          AWS_KEY_ID=$(oc get secret "${AWS_CREDS_SECRET}" -n "$(context.taskRun.namespace)" \
+            -o jsonpath='{.data.aws_access_key_id}' 2>/dev/null | base64 -d)
+          AWS_SECRET=$(oc get secret "${AWS_CREDS_SECRET}" -n "$(context.taskRun.namespace)" \
+            -o jsonpath='{.data.aws_secret_access_key}' 2>/dev/null | base64 -d)
+          if [ -z "${AWS_KEY_ID}" ] || [ -z "${AWS_SECRET}" ]; then
+            echo "WARNING: Could not read AWS credentials from secret ${AWS_CREDS_SECRET}, skipping injection"
+          else
+            printf '%s\n' \
+              'import os, yaml' \
+              'vs_path = os.environ["VS_PATH"]' \
+              'key_id = os.environ["AWS_KEY_ID"]' \
+              'secret = os.environ["AWS_SECRET"]' \
+              'with open(vs_path) as f:' \
+              '    vs = yaml.safe_load(f) or {}' \
+              'vs.setdefault("secrets", [])' \
+              'vs["secrets"] = [s for s in vs["secrets"] if s.get("name") != "aws"]' \
+              'vs["secrets"].append({"name": "aws", "fields": [' \
+              '    {"name": "aws_access_key_id", "value": key_id},' \
+              '    {"name": "aws_secret_access_key", "value": secret},' \
+              ']})' \
+              'with open(vs_path, "w") as f:' \
+              '    yaml.dump(vs, f, default_flow_style=False, allow_unicode=True)' \
+              'print("Injected AWS credentials")' \
+              > /tmp/inject_aws.py
+            VS_PATH="${VALUES_SECRET}" \
+            AWS_KEY_ID="${AWS_KEY_ID}" \
+            AWS_SECRET="${AWS_SECRET}" \
+            python3 /tmp/inject_aws.py
+          fi
         fi
 
         cd $(workspaces.pattern-repo.path)
