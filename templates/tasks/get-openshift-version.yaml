@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1beta1
 kind: StepAction
 metadata:
   name: get-openshift-version
-  namespace: {{ .Values.pipelineNamespace }}
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
   labels:
     {{- include "pipelines.labels" . | nindent 4 }}
 spec:

@@ -1,4 +1,4 @@
-pipelineNamespace: aeros-qe-test-stuff #cluster-provisioning
+pipelineNamespace: cluster-provisioning
 
 # Hub pattern may pass clusterGroup (namespaces, applications) for conditional behavior.
 clusterGroup: {}
@@ -42,8 +42,12 @@ hive:
   defaultControlPlaneReplicas: "3"
   defaultWorkerReplicas: "3"
 
-pipelines:
+global:
+  hubClusterDomain: apps.hcp.aws.validatedpatterns.io
+
+qeCIPipelines:
   defaults:
+    namespace: vp-qe-ci
     platforms:
       aws:
         region: us-east-1
@@ -57,7 +61,7 @@ pipelines:
         projectId: rh-patterns
         credentialName: qe-ci-gcp-creds
       azure:
-        region: eastus
+        region: westus3
         baseDomain: azure.validatedpatterns.io
         baseDomainResourceGroup: os4-common
         credentialName: qe-ci-azure-creds
@@ -109,12 +113,12 @@ pipelines:
         aws:
       flavors:
         single:
-      # Pre-created Secrets in pipelineNamespace;
+      # Pre-created Secrets in qeCIPipelines.defaults.namespace;
       # workspace name matches secret name (underscores become hyphens). Bind each at PipelineRun / in UI.
       secrets:
-        - aeg-secret-values-file # oc create secret generic aeg-secret-values-file  -n aeros-qe-test-stuff --from-file=values-secret.yaml=aeg-qe-values-secret.yaml
-        - aeg-aap-manifest-file  # oc create secret generic aeg-aap-manifest-file -n aeros-qe-test-stuff --from-file=aap_manifest.zip=/home/aeros/Downloads/manifest_vp-aeros_20260709T084257Z.zip
-        - aeg-aap-ssh-file       # oc create secret generic aeg-aap-ssh-file -n aeros-qe-test-stuff --from-file=id_rsa=aeg-qe-ssh --from-file=id_rsa.pub=aeg-qe-ssh.pub
+        - aeg-secret-values-file # oc create secret generic aeg-secret-values-file  -n vp-qe-ci --from-file=values-secret.yaml=aeg-qe-values-secret.yaml
+        - aeg-aap-manifest-file  # oc create secret generic aeg-aap-manifest-file -n vp-qe-ci --from-file=aap_manifest.zip=/home/aeros/Downloads/manifest_vp-aeros_20260709T084257Z.zip
+        - aeg-aap-ssh-file       # oc create secret generic aeg-aap-ssh-file -n vp-qe-ci --from-file=id_rsa=aeg-qe-ssh --from-file=id_rsa.pub=aeg-qe-ssh.pub
 
     # industrial-edge:
     #   repo: https://github.com/validatedpatterns/industrial-edge.git
@@ -128,16 +132,31 @@ pipelines:
     #   flavors:
     #     - single
 
-    # # These are the tested tier
-    # layered-zero:
+    # These are the tested tier
+    layered-zero:
+      repo: https://github.com/darkdoc/layered-zero-trust.git
+      revision: pipeline_test
+      flavors:
+        single:
+          clusterGroup: ci
+
     # travelops:
+    #   repo: https://github.com/validatedpatterns/travelops.git
+    #   flavors:
+    #     - single
+
     # hypershift:
-    # retail:
+    #   repo: https://github.com/validatedpatterns-sandbox/hypershift
+    #   flavors:
+    #     - hosted
+    #     - single
+
     # ragllm:
     #   platforms:
-    #     aws: {}
+    #     aws:
     #   flavors:
-    #     standalone: {}
+    #     single:
+
   scheduleDefaults:
     suspend: false
     concurrencyPolicy: Forbid
@@ -152,30 +171,27 @@ pipelines:
   # Each entry creates a CronJob that starts a PipelineRun for an existing pipeline.
   # cron schedules are started on UTC times
   schedules:
-    - pipeline: mcg-aws-4-21-multi
-      cron: "0 6 * * 1" # Tuesday 6:00 UTC
-    - pipeline: mcg-aws-4-20-multi
+    - pipeline: mcg-aws-4-18-multi
+      cron: "0 6 * * 1" # Monday 6:00 UTC
+    - pipeline: mcg-gcp-4-20-multi
       cron: "0 6 * * 2" # Tuesday 6:00 UTC
-    - pipeline: mcg-aws-4-20-single
-      cron: "0 6 * * 2" # Tuesday 6:00 UTC
-    - pipeline: ansible-edge-aws-4-21-single
-      cron: "0 6 * * 3" # Wed 6:00 UTC
-      timeout: 4h
-      taskTimeout: 3h
-      finallyTimeout: 30m
-    - pipeline: ansible-edge-aws-4-20-single
-      cron: "0 6 * * 5" # Fri 6:00 UTC
-      timeout: 4h
-      taskTimeout: 3h
-      finallyTimeout: 30m
-    - pipeline: layered-zero-aws-4-21-single
-      cron: "0 6 * * 2" # Tue 6:00 UTC
-      timeout: 4h
-      taskTimeout: 3h
-      finallyTimeout: 30m
-      params:
-        - name: force-skip-cleanup
-          value: true
+    - pipeline: mcg-azure-4-20-single
+      cron: "0 6 * * 3" # Wednesday 6:00 UTC
+    # - pipeline: ansible-edge-aws-4-21-single
+    #   cron: "0 6 * * 3" # Wed 6:00 UTC
+    #   timeout: 4h
+    #   taskTimeout: 3h
+    #   finallyTimeout: 30m
+    # - pipeline: ansible-edge-aws-4-20-single
+    #   cron: "0 6 * * 5" # Fri 6:00 UTC
+    #   timeout: 4h
+    #   taskTimeout: 3h
+    #   finallyTimeout: 30m
+    # - pipeline: layered-zero-aws-4-21-single
+    #   cron: "0 6 * * 2" # Tue 6:00 UTC
+    #   timeout: 4h
+    #   taskTimeout: 3h
+    #   finallyTimeout: 30m
     # - pipeline: ansible-edge-aws-4-21-single
     #   cron: "0 3 * * 0"
     #   timeout: 4h

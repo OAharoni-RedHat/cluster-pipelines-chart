@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: provision-hosted-cluster
-  namespace: {{ .Values.pipelineNamespace }}
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
   labels:
     {{- include "pipelines.labels" . | nindent 4 }}
 spec:
@@ -13,7 +13,7 @@ spec:
       default: ""
     - name: namespace
       type: string
-      default: {{ .Values.pipelineNamespace }}
+      default: {{ .Values.qeCIPipelines.defaults.namespace }}
     - name: cluster-role
       type: string
       default: hub
@@ -28,7 +28,7 @@ spec:
       default: ""
     - name: wait-timeout
       type: string
-      default: {{ .Values.pipelines.defaults.provisionTaskTimeout }}
+      default: {{ .Values.qeCIPipelines.defaults.provisionTaskTimeout }}
     - name: ssh-public-key
       type: string
       default: ""
@@ -75,9 +75,9 @@ spec:
     - name: creds
       description: Holds generated aws sts creds
   volumes:
-  - name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
+  - name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
     secret:
-      secretName: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
+      secretName: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
   - name: pull-secret
     secret:
       secretName: global-pullsecret
@@ -148,13 +148,13 @@ spec:
         fi
 
     - name: generate-sts-creds
-      image: {{ .Values.pipelines.defaults.utilityContainerImg }}
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
       when:
         - input: "$(steps.check-existing.results.cluster-exists)"
           operator: in
           values: ["false"]
       volumeMounts:
-      - name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
+      - name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
         mountPath: /tekton/home/.aws
       script: |
         #!/bin/bash
@@ -192,8 +192,8 @@ spec:
         CLUSTER_NAME="$(cat "$(results.cluster-name.path)")"
         CLUSTER_NAMESPACE=$(params.namespace)
 
-        BASE_DOMAIN={{ .Values.pipelines.defaults.platforms.aws.baseDomain | quote }}
-        CLOUD_REGION={{ .Values.pipelines.defaults.platforms.aws.region | quote }}
+        BASE_DOMAIN={{ .Values.qeCIPipelines.defaults.platforms.aws.baseDomain | quote }}
+        CLOUD_REGION={{ .Values.qeCIPipelines.defaults.platforms.aws.region | quote }}
 
         WORKER_REPLICAS="$(params.compute-nodes-config.replicas)"
         WORKER_TYPE="$(params.compute-nodes-config.type)"
@@ -204,11 +204,11 @@ spec:
         CREDS_DIR="$(workspaces.creds.path)"
         STS_CREDS="${CREDS_DIR}/sts-creds.json"
 
-        ROLE_ARN={{ .Values.pipelines.defaults.hcpARN }}
+        ROLE_ARN={{ .Values.qeCIPipelines.defaults.hcpARN }}
 
-        CLUSTER_CIDR={{ (index .Values.pipelines.defaults.networking.clusterNetwork 0).cidr }}
-        MACHINE_CIDR={{ (index .Values.pipelines.defaults.networking.machineNetwork 0).cidr }}
-        SERVICE_CIDR={{ index .Values.pipelines.defaults.networking.serviceNetwork 0 }}
+        CLUSTER_CIDR={{ (index .Values.qeCIPipelines.defaults.networking.clusterNetwork 0).cidr }}
+        MACHINE_CIDR={{ (index .Values.qeCIPipelines.defaults.networking.machineNetwork 0).cidr }}
+        SERVICE_CIDR={{ index .Values.qeCIPipelines.defaults.networking.serviceNetwork 0 }}
 
 
         echo "============================================"

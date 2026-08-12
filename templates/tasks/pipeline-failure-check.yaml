@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: pipeline-failure-check
-  namespace: {{ .Values.pipelineNamespace }}
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
   labels:
     {{- include "pipelines.labels" . | nindent 4 }}
 spec:
@@ -12,7 +12,7 @@ spec:
       type: string
   steps:
     - name: check
-      image: {{ .Values.pipelines.defaults.utilityContainerImg }}
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
       script: |
         #!/usr/bin/env bash
         if [ "$(params.aggregateTasksStatus)" = "Failed" ]; then

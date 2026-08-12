@@ -3,15 +3,15 @@
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
-  namespace: {{ .Values.pipelineNamespace }}
+  name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
 spec:
   refreshInterval: 1h
   secretStoreRef:
     name: {{ .Values.externalSecrets.secretStore.name }}
     kind: {{ .Values.externalSecrets.secretStore.kind }}
   target:
-    name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
+    name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
     creationPolicy: Owner
     template:
       engineVersion: v2
@@ -27,15 +27,15 @@ spec:
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: {{ .Values.pipelines.defaults.platforms.gcp.credentialName }}
-  namespace: {{ .Values.pipelineNamespace }}
+  name: {{ .Values.qeCIPipelines.defaults.platforms.gcp.credentialName }}
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
 spec:
   refreshInterval: 1h
   secretStoreRef:
     name: {{ .Values.externalSecrets.secretStore.name }}
     kind: {{ .Values.externalSecrets.secretStore.kind }}
   target:
-    name: {{ .Values.pipelines.defaults.platforms.gcp.credentialName }}
+    name: {{ .Values.qeCIPipelines.defaults.platforms.gcp.credentialName }}
     creationPolicy: Owner
     template:
       engineVersion: v2
@@ -50,15 +50,15 @@ spec:
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: {{ .Values.pipelines.defaults.platforms.azure.credentialName }}
-  namespace: {{ .Values.pipelineNamespace }}
+  name: {{ .Values.qeCIPipelines.defaults.platforms.azure.credentialName }}
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
 spec:
   refreshInterval: 1h
   secretStoreRef:
     name: {{ .Values.externalSecrets.secretStore.name }}
     kind: {{ .Values.externalSecrets.secretStore.kind }}
   target:
-    name: {{ .Values.pipelines.defaults.platforms.azure.credentialName }}
+    name: {{ .Values.qeCIPipelines.defaults.platforms.azure.credentialName }}
     creationPolicy: Owner
     template:
       engineVersion: v2

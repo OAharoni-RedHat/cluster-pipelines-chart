@@ -1,7 +1,7 @@
 {{/*
 Single cluster flavor: single cluster Hive deploy, after metadata validation.
 */}}
-{{- define "pipelines.provision.single" -}}
+{{- define "qeCIPipelines.provision.single" -}}
 {{- $params := merge (deepCopy .) (dict
       "clusterBaseName" (printf "%s" .patternName )
       "clusterRole" "hub"
@@ -10,11 +10,11 @@ Single cluster flavor: single cluster Hive deploy, after metadata validation.
 - name: provision-cluster
   runAfter:
     - validate-pattern-metadata
-  timeout: {{ default "2h" .root.Values.pipelines.defaults.provisionTaskTimeout | quote }}
+  timeout: {{ default "2h" .root.Values.qeCIPipelines.defaults.provisionTaskTimeout | quote }}
   taskRef:
     name: provision-cluster
   params:
-{{ include "pipelines.provision.cluster.hive.params" $params | nindent 4 }}
+{{ include "qeCIPipelines.provision.cluster.hive.params" $params | nindent 4 }}
     - name: ocp-version
       value: {{ .ocpVersion | quote }}
     - name: control-plane-config
@@ -30,7 +30,7 @@ Single cluster flavor: single cluster Hive deploy, after metadata validation.
       subPath: install-config/{{ $params.clusterBaseName }}-hub
 {{- end }}
 
-{{- define "pipelines.cleanup.single" -}}
+{{- define "qeCIPipelines.cleanup.single" -}}
 - name: delete-cluster-if-succeeded
   when:
     - input: $(tasks.status)

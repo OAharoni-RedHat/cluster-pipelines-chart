@@ -1,25 +1,25 @@
 {{/*
 Multi cluster flavor: hub and spoke provision in parallel (pool claim or Hive deploy).
 */}}
-{{- define "pipelines.provision.multi" -}}
+{{- define "qeCIPipelines.provision.multi" -}}
 {{- $hubParams := merge (deepCopy .) (dict
       "clusterBaseName" (printf "%s" .patternName)
       "clusterRole" "hub"
-      "namespace" (printf "%s" .pipelineNamespace)
+      "namespace" (printf "%s" .namespace)
     ) -}}
 {{- $spokeParams := merge (deepCopy .) (dict
       "clusterBaseName" (printf "%s" .patternName)
       "clusterRole" "spoke"
-      "namespace" (printf "%s" .pipelineNamespace)
+      "namespace" (printf "%s" .namespace)
     ) -}}
 - name: provision-hub
   runAfter:
     - validate-pattern-metadata
-  timeout: {{ default "2h" .root.Values.pipelines.defaults.provisionTaskTimeout | quote }}
+  timeout: {{ default "2h" .root.Values.qeCIPipelines.defaults.provisionTaskTimeout | quote }}
   taskRef:
     name: provision-cluster
   params:
-{{ include "pipelines.provision.cluster.hive.params" $hubParams | nindent 4 }}
+{{ include "qeCIPipelines.provision.cluster.hive.params" $hubParams | nindent 4 }}
     - name: ocp-version
       value: {{ .ocpVersion | quote }}
     - name: control-plane-config
@@ -36,11 +36,11 @@ Multi cluster flavor: hub and spoke provision in parallel (pool claim or Hive de
 - name: provision-spoke
   runAfter:
     - validate-pattern-metadata
-  timeout: {{ default "2h" .root.Values.pipelines.defaults.provisionTaskTimeout | quote }}
+  timeout: {{ default "2h" .root.Values.qeCIPipelines.defaults.provisionTaskTimeout | quote }}
   taskRef:
     name: provision-cluster
   params:
-{{ include "pipelines.provision.cluster.hive.params" $spokeParams | nindent 4 }}
+{{ include "qeCIPipelines.provision.cluster.hive.params" $spokeParams | nindent 4 }}
     - name: ocp-version
       value: {{ .ocpVersion | quote }}
     - name: control-plane-config
@@ -56,7 +56,7 @@ Multi cluster flavor: hub and spoke provision in parallel (pool claim or Hive de
       subPath: install-config/{{ $spokeParams.clusterBaseName }}-spoke
 {{- end }}
 
-{{- define "pipelines.cleanup.multi" -}}
+{{- define "qeCIPipelines.cleanup.multi" -}}
 - name: delete-spoke-if-succeeded
   when:
     - input: $(tasks.status)

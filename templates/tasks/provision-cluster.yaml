@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: provision-cluster
-  namespace: {{ .Values.pipelineNamespace }}
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
   labels:
     {{- include "pipelines.labels" . | nindent 4 }}
 spec:
@@ -14,7 +14,7 @@ spec:
       default: ""
     - name: namespace
       type: string
-      default: {{ .Values.pipelineNamespace }}
+      default: {{ .Values.qeCIPipelines.defaults.namespace }}
     - name: cluster-role
       type: string
       default: hub
@@ -29,7 +29,7 @@ spec:
       default: ""
     - name: wait-timeout
       type: string
-      default: {{ .Values.pipelines.defaults.provisionTaskTimeout }}
+      default: {{ .Values.qeCIPipelines.defaults.provisionTaskTimeout }}
     - name: ssh-public-key
       type: string
       default: ""
@@ -144,7 +144,7 @@ spec:
 
 
         case "${PLATFORM}" in
-        {{- range $name, $cfg := .Values.pipelines.defaults.platforms }}
+        {{- range $name, $cfg := .Values.qeCIPipelines.defaults.platforms }}
           {{ $name }})
             BASE_DOMAIN={{ $cfg.baseDomain | quote }}
             CLOUD_REGION={{ $cfg.region | quote }}
@@ -169,8 +169,8 @@ spec:
         azure_identity=''
 
         if [ "${PLATFORM}" = "aws" ]; then
-            compute_iam='iamRole: {{ .Values.pipelines.defaults.platforms.aws.computeNodeIAMRole }}'
-            controlplane_iam='iamRole: {{ .Values.pipelines.defaults.platforms.aws.controlPlaneIAMRole }}'
+            compute_iam='iamRole: {{ .Values.qeCIPipelines.defaults.platforms.aws.computeNodeIAMRole }}'
+            controlplane_iam='iamRole: {{ .Values.qeCIPipelines.defaults.platforms.aws.controlPlaneIAMRole }}'
         fi
 
         if [ "${PLATFORM}" = "azure" ]; then
@@ -204,13 +204,13 @@ spec:
           name: ${CLUSTER_NAME}
         networking:
           clusterNetwork:
-          - cidr: {{ (index .Values.pipelines.defaults.networking.clusterNetwork 0).cidr }}
-            hostPrefix: {{ (index .Values.pipelines.defaults.networking.clusterNetwork 0).hostPrefix }}
+          - cidr: {{ (index .Values.qeCIPipelines.defaults.networking.clusterNetwork 0).cidr }}
+            hostPrefix: {{ (index .Values.qeCIPipelines.defaults.networking.clusterNetwork 0).hostPrefix }}
           machineNetwork:
-          - cidr: {{ (index .Values.pipelines.defaults.networking.machineNetwork 0).cidr }}
-          networkType: {{ .Values.pipelines.defaults.networking.networkType }}
+          - cidr: {{ (index .Values.qeCIPipelines.defaults.networking.machineNetwork 0).cidr }}
+          networkType: {{ .Values.qeCIPipelines.defaults.networking.networkType }}
           serviceNetwork:
-          - {{ index .Values.pipelines.defaults.networking.serviceNetwork 0 }}
+          - {{ index .Values.qeCIPipelines.defaults.networking.serviceNetwork 0 }}
         pullSecret: ""
         platform:
         EOF
@@ -278,7 +278,7 @@ spec:
         OUT="$(workspaces.install-config.path)/clusterdeployment.yaml"
 
         case "${PLATFORM}" in
-        {{- range $name, $cfg := .Values.pipelines.defaults.platforms }}
+        {{- range $name, $cfg := .Values.qeCIPipelines.defaults.platforms }}
           {{ $name }})
             BASE_DOMAIN={{ $cfg.baseDomain | quote }}
             CLOUD_REGION={{ $cfg.region | quote }}
@@ -330,7 +330,7 @@ spec:
             cat >> "${OUT}" <<EOF
             aws:
               credentialsSecretRef:
-                name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
+                name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
               region: ${CLOUD_REGION}
         EOF
             ;;
@@ -338,7 +338,7 @@ spec:
             cat >> "${OUT}" <<EOF
             gcp:
               credentialsSecretRef:
-                name: {{ .Values.pipelines.defaults.platforms.gcp.credentialName }}
+                name: {{ .Values.qeCIPipelines.defaults.platforms.gcp.credentialName }}
               region: ${CLOUD_REGION}
         EOF
             ;;
@@ -346,7 +346,7 @@ spec:
             cat >> "${OUT}" <<EOF
             azure:
               credentialsSecretRef:
-                name: {{ .Values.pipelines.defaults.platforms.azure.credentialName }}
+                name: {{ .Values.qeCIPipelines.defaults.platforms.azure.credentialName }}
               region: ${CLOUD_REGION}
               baseDomainResourceGroupName: ${AZ_RG}
         EOF

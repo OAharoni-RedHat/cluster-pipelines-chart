@@ -1,7 +1,7 @@
 {{/*
 Checkout, metadata validation, and sizing (always first).
 */}}
-{{- define "pipelines.tasks.setup" -}}
+{{- define "qeCIPipelines.tasks.setup" -}}
 - name: checkout-pattern-repo
   taskRef:
     name: clone-git-repo
@@ -32,12 +32,12 @@ Checkout, metadata validation, and sizing (always first).
 {{/*
 Install, optional spoke import, tests, and diagnostics (after provisioning).
 */}}
-{{- define "pipelines.tasks.post-provision" -}}
+{{- define "qeCIPipelines.tasks.post-provision" -}}
 {{- $patternSecrets := list -}}
 {{- if .app.secrets -}}
 {{- range $i, $entry := .app.secrets -}}
-{{- $name := include "pipelines.patternSecretName" $entry -}}
-{{- $workspace := include "pipelines.secretWorkspaceName" $name -}}
+{{- $name := include "qeCIPipelines.patternSecretName" $entry -}}
+{{- $workspace := include "qeCIPipelines.secretWorkspaceName" $name -}}
 {{- $patternSecrets = append $patternSecrets (dict "name" $name "workspace" $workspace "index" $i) -}}
 {{- end -}}
 {{- end -}}
@@ -66,7 +66,7 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
       value: $(tasks.provision-hosted-cluster.results.cluster-name)
     {{- end }}
     - name: target-clustergroup
-      value: {{ include "pipelines.targetClusterGroup" . | quote }}
+      value: {{ include "qeCIPipelines.targetClusterGroup" . | quote }}
   workspaces:
     - name: pattern-repo
       workspace: shared-data
@@ -124,7 +124,7 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
       value: $(tasks.provision-hosted-cluster.results.cluster-name)
     {{- end }}
     - name: target-clustergroup
-      value: {{ include "pipelines.targetClusterGroup" . | quote }}
+      value: {{ include "qeCIPipelines.targetClusterGroup" . | quote }}
     - name: install-status
     {{- if eq .flavorName "multi" }}
       value: $(tasks.import-spoke.results.import-status)
@@ -211,7 +211,7 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
 {{/*
 Shared finally tasks (not flavor-specific cleanup).
 */}}
-{{- define "pipelines.finally.common" -}}
+{{- define "qeCIPipelines.finally.common" -}}
 - name: slack-notify-any-failure
   when:
     - input: $(tasks.status)

@@ -1,6 +1,6 @@
 # Pattern test pipelines
 
-This chart renders Tekton `Pipeline` resources (and optional scheduled `CronJob` triggers) that exercise [Validated Patterns](https://validatedpatterns.io/) against real OpenShift clusters. Each pipeline is a fixed combination of **pattern**, **cloud platform**, **OCP version**, and **topology flavor**. Helm expands a Cartesian product from `values.yaml` into many named pipelines in `pipelineNamespace`.
+This chart renders Tekton `Pipeline` resources (and optional scheduled `CronJob` triggers) that exercise [Validated Patterns](https://validatedpatterns.io/) against real OpenShift clusters. Each pipeline is a fixed combination of **pattern**, **cloud platform**, **OCP version**, and **topology flavor**. Helm expands a Cartesian product from `values.yaml` into many named pipelines in `qeCIPipelines.defaults.namespace`.
 
 Running pipelines from the OpenShift Pipelines UI or CLI, and debugging or connecting to provisioned clusters, are documented separately.
 
@@ -8,7 +8,7 @@ Running pipelines from the OpenShift Pipelines UI or CLI, and debugging or conne
 
 ## How pipelines are generated
 
-Rendering is driven by `templates/pipelines/standard-pipelines.yaml`. For every entry under `pipelines.patterns`, Helm computes three axes and emits one `Pipeline` per combination.
+Rendering is driven by `templates/pipelines/standard-pipelines.yaml`. For every entry under `qeCIPipelines.patterns`, Helm computes three axes and emits one `Pipeline` per combination.
 
 | Axis | Values source | Resolution order |
 |------|----------------|------------------|
@@ -28,7 +28,7 @@ Examples: `mcg-aws-4-21-multi`, `ansible-edge-aws-4-20-single`.
 
 Labels on each pipeline: `pattern.name`, `pattern.platform`, `pattern.ocp-version`, `pattern.flavor`.
 
-### Global defaults (`pipelines.defaults`)
+### Global defaults (`qeCIPipelines.defaults`)
 
 Shared configuration used across generated pipelines:
 
@@ -63,10 +63,10 @@ All flavors share the same high-level shape:
 setup → provision (flavor-specific) → post-provision → finally (cleanup + reporting)
 ```
 
-- **Setup** — `pipelines.tasks.setup` in `_pipeline-common.tpl`
-- **Provision** — `pipelines.provision.<flavor>` (`single`, `multi`, `hosted`)
-- **Post-provision** — `pipelines.tasks.post-provision`
-- **Finally** — `pipelines.cleanup.<flavor>` plus `pipelines.finally.common` (Slack on failure, aggregate status, CI badge)
+- **Setup** — `qeCIPipelines.tasks.setup` in `_pipeline-common.tpl`
+- **Provision** — `qeCIPipelines.provision.<flavor>` (`single`, `multi`, `hosted`)
+- **Post-provision** — `qeCIPipelines.tasks.post-provision`
+- **Finally** — `qeCIPipelines.cleanup.<flavor>` plus `qeCIPipelines.finally.common` (Slack on failure, aggregate status, CI badge)
 
 ---
 
@@ -87,7 +87,7 @@ If validation fails, provisioning does not start.
 
 One Hive-managed cluster acting as the pattern target (metadata role **hub**).
 
-- **`provision-cluster`** — After validation: builds `install-config` and `ClusterDeployment` from pattern name, platform, OCP version, role, flavor, and a per-run suffix (`cluster-name-postfix` or the `PipelineRun` name tail); applies them in `pipelineNamespace`; waits until the deployment is Ready; exports admin kubeconfig (and password when present) into `shared-data` / `kubeconfig`.
+- **`provision-cluster`** — After validation: builds `install-config` and `ClusterDeployment` from pattern name, platform, OCP version, role, flavor, and a per-run suffix (`cluster-name-postfix` or the `PipelineRun` name tail); applies them in `qeCIPipelines.defaults.namespace`; waits until the deployment is Ready; exports admin kubeconfig (and password when present) into `shared-data` / `kubeconfig`.
 
 Cluster name pattern:
 
@@ -126,10 +126,10 @@ Install and interop tasks use `onError: continue` so failures can still trigger 
 
 ### `clusterGroup` (install / test target)
 
-Resolved by `pipelines.targetClusterGroup`:
+Resolved by `qeCIPipelines.targetClusterGroup`:
 
-1. `pipelines.patterns.<name>.flavors.<flavor>.clusterGroup`
-2. Else `pipelines.defaults.flavors.<flavor>.clusterGroup` (when defaults flavors are a map)
+1. `qeCIPipelines.patterns.<name>.flavors.<flavor>.clusterGroup`
+2. Else `qeCIPipelines.defaults.flavors.<flavor>.clusterGroup` (when defaults flavors are a map)
 3. Else **`hub`**
 
 Example: `mcg` sets `single.clusterGroup: standalone` so install/tests target the standalone group even though the cluster is one Hive deployment.
@@ -158,14 +158,14 @@ Tekton `finally` tasks always run reporting steps; cluster teardown is flavor-sp
 
 ## Diverging from defaults per pattern
 
-Defaults minimize duplication; each pattern under `pipelines.patterns` can narrow or override any axis.
+Defaults minimize duplication; each pattern under `qeCIPipelines.patterns` can narrow or override any axis.
 
 ### Platform
 
 Set a `platforms` map on the pattern. **Only listed platforms** get pipelines. Keys match `defaults.platforms` (`aws`, `gcp`, `azure`). Values can be empty maps (`aws:`) to inherit region/baseDomain from defaults for that key—but you must still list the platform if you want it.
 
 ```yaml
-pipelines:
+qeCIPipelines:
   patterns:
     ansible-edge:
       platforms:
@@ -184,8 +184,6 @@ Set `ocp_versions` on the pattern (list or map). Omit to use `defaults.ocp_versi
         - "4.20"
         - "4.21"
 ```
-
-Versions must exist in `pipelines.imageSets` for Hive provisioning.
 
 ### Flavor
 
@@ -243,11 +241,11 @@ Helm validates:
 
 ### Creating secrets on the cluster
 
-Create `Secret` objects in **`pipelineNamespace`** before running the pipeline. The Secret **name** must match the values entry. Example comments in `values.yaml`:
+Create `Secret` objects in **`qeCIPipelines.defaults.namespace`** before running the pipeline. The Secret **name** must match the values entry. Example comments in `values.yaml`:
 
 ```bash
 oc create secret generic aeg-secret-values-file \
-  -n <pipelineNamespace> \
+  -n <qeCIPipelines.defaults.namespace> \
   --from-file=values-secret.yaml=path/to/values-secret.yaml
 ```
 
@@ -276,7 +274,7 @@ Scheduled runs (below) auto-attach workspaces for secrets belonging to the pipel
 
 ## Scheduled pipeline runs
 
-File: `templates/pipelines/standard-schedules.yaml`. Enabled when `pipelines.schedules` is non-empty.
+File: `templates/pipelines/standard-schedules.yaml`. Enabled when `qeCIPipelines.schedules` is non-empty.
 
 For each schedule entry, the chart creates:
 
@@ -285,7 +283,7 @@ For each schedule entry, the chart creates:
 
 ### `scheduleDefaults`
 
-Under `pipelines.scheduleDefaults` (merged per entry):
+Under `qeCIPipelines.scheduleDefaults` (merged per entry):
 
 | Field | Typical purpose |
 |-------|------------------|
@@ -299,7 +297,7 @@ Under `pipelines.scheduleDefaults` (merged per entry):
 ### Per-schedule entries
 
 ```yaml
-pipelines:
+qeCIPipelines:
   schedules:
     - pipeline: mcg-aws-4-21-multi
       cron: "0 6 * * 1"
@@ -362,7 +360,7 @@ Brief pointers for operators:
 
 | Resource | Role |
 |----------|------|
-| `pipelineNamespace` | Namespace for Pipelines, Tasks, PipelineRuns, Hive `ClusterDeployment`s, and pattern Secrets. |
+| `qeCIPipelines.defaults.namespace` | Namespace for Pipelines, Tasks, PipelineRuns, Hive `ClusterDeployment`s, and pattern Secrets. |
 | `serviceAccount` / RBAC | Provisioner identity for Hive, secrets, and cluster operations. |
 | `externalSecrets` + `platform-creds` / `global-pull-secret` | Cloud and pull credentials consumed during provision. |
 | `hypershift` / `hcpImage` | Hosted-cluster flavor configuration. |
@@ -402,5 +400,5 @@ pipelines:
 After `helm upgrade`, list pipelines with:
 
 ```bash
-oc get pipeline -n <pipelineNamespace> -l pattern.name=my-pattern
+oc get pipeline -n <qeCIPipelines.defaults.namespace> -l pattern.name=my-pattern
 ```

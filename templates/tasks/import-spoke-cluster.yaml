@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: import-spoke-cluster
-  namespace: {{ .Values.pipelineNamespace }}
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
   labels:
     {{- include "pipelines.labels" . | nindent 4 }}
 spec:
@@ -24,7 +24,7 @@ spec:
     - name: import-status
   steps:
     - name: import-spoke
-      image: {{ .Values.pipelines.defaults.utilityContainerImg }}
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
       env:
         - name: VP_HUBCONFIG
           value: $(workspaces.kubeconfig.path)/$(params.hub-cluster-name)-kubeconfig
@@ -52,77 +52,8 @@ spec:
         # If we reach here, everything succeeded
         echo -n success > "$(results.import-status.path)"
 
-    # This task is to work-around the regressing argocd bug https://github.com/argoproj/argo-cd/pull/27672
-    # - name: refresh-spoke-app-of-apps
-    #   image: {{ .Values.pipelines.defaults.utilityContainerImg }}
-    #   env:
-    #     - name: SPOKECONFIG
-    #       value: $(workspaces.kubeconfig.path)/$(params.spoke-cluster-name)-kubeconfig
-    #   script: |
-    #     #!/usr/bin/env bash
-    #     set -euo pipefail
-    #     unset KUBERNETES_SERVICE_HOST
-
-    #     # Work-around for https://github.com/argoproj/argo-cd/pull/27672
-    #     # Only the root app-of-apps can hit this on first sync; child apps are blocked until it is fixed.
-    #     NAMESPACES=("vp-gitops" "openshift-gitops")
-    #     MAX_WAIT=1200  # seconds (20 minutes)
-    #     POLL=15  # seconds between checks
-    #     elapsed=0
-
-    #     while [ "$elapsed" -lt "$MAX_WAIT" ]; do
-    #       if ! oc --kubeconfig "${SPOKECONFIG}" get crd applications.argoproj.io &>/dev/null; then
-    #         echo "Waiting for applications.argoproj.io CRD... (${elapsed}s)"
-    #         sleep "$POLL"
-    #         elapsed=$((elapsed + POLL))
-    #         continue
-    #       fi
-    #       if ! oc --kubeconfig "${SPOKECONFIG}" wait --for=condition=Established \
-    #           crd/applications.argoproj.io --timeout=30s &>/dev/null; then
-    #         echo "Waiting for applications.argoproj.io CRD to be Established... (${elapsed}s)"
-    #         sleep "$POLL"
-    #         elapsed=$((elapsed + POLL))
-    #         continue
-    #       fi
-
-    #       for ns in "${NAMESPACES[@]}"; do
-    #         apps_json="$(oc --kubeconfig "${SPOKECONFIG}" get applications -n "$ns" -o json 2>/dev/null)" || continue
-    #         count="$(echo "$apps_json" | jq '.items | length')"
-
-    #         if [ "$count" -gt 1 ]; then
-    #           echo "Multiple applications in ${ns}; workaround not needed"
-    #           exit 0
-    #         fi
-    #         if [ "$count" -ne 1 ]; then
-    #           continue
-    #         fi
-
-    #         app="$(echo "$apps_json" | jq -r '.items[0].metadata.name')"
-    #         echo "Found root Application ${ns}/${app}"
-
-    #         if echo "$apps_json" | jq -e '
-    #           .items[0].status.conditions[]?
-    #           | select((.message // "") | contains("referencing project default which does not exist"))
-    #         ' >/dev/null; then
-    #           echo "Retrying sync for ${ns}/${app}"
-    #           kubectl --kubeconfig "${SPOKECONFIG}" patch application "$app" \
-    #             -n "$ns" \
-    #             --type merge \
-    #             -p '{"operation":{"sync":{}}}'
-    #           exit 0
-    #         fi
-    #       done
-
-    #       echo "Waiting for spoke GitOps... (${elapsed}s)"
-    #       sleep "$POLL"
-    #       elapsed=$((elapsed + POLL))
-    #     done
-
-    #     echo "Timed out; skipping app-of-apps sync workaround"
-    #     exit 0
-
     - name: wait-spoke-apps
-      image: {{ .Values.pipelines.defaults.utilityContainerImg }}
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
       env:
         - name: SPOKECONFIG
           value: $(workspaces.kubeconfig.path)/$(params.spoke-cluster-name)-kubeconfig

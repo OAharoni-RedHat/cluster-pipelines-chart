@@ -1,4 +1,4 @@
-{{- define "pipelines.provision.cluster.hive.params" -}}
+{{- define "qeCIPipelines.provision.cluster.hive.params" -}}
 - name: cluster-base-name
   value: {{ .clusterBaseName | quote }}
 - name: platform

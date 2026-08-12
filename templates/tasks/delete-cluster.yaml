@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: delete-cluster
-  namespace: {{ .Values.pipelineNamespace }}
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
   labels:
     {{- include "pipelines.labels" . | nindent 4 }}
 spec:
@@ -14,7 +14,7 @@ spec:
       default: ""
     - name: namespace
       type: string
-      default: {{ .Values.pipelineNamespace }}
+      default: {{ .Values.qeCIPipelines.defaults.namespace }}
   steps:
     - name: delete-hive-cluster
       image: {{ .Values.toolsImage }}

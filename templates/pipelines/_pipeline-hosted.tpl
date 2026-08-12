@@ -1,11 +1,11 @@
 {{/*
 Hosted cluster flavor: HyperShift hosted cluster (after metadata validation).
 */}}
-{{- define "pipelines.provision.hosted" -}}
+{{- define "qeCIPipelines.provision.hosted" -}}
 - name: provision-hosted-cluster
   runAfter:
     - validate-pattern-metadata
-  timeout: {{ default "2h" .root.Values.pipelines.defaults.provisionTaskTimeout | quote }}
+  timeout: {{ default "2h" .root.Values.qeCIPipelines.defaults.provisionTaskTimeout | quote }}
   taskRef:
     name: provision-hosted-cluster
   params:
@@ -14,7 +14,7 @@ Hosted cluster flavor: HyperShift hosted cluster (after metadata validation).
     - name: platform
       value: {{ .platformName | quote }}
     - name: namespace
-      value: {{ .pipelineNamespace | quote }}
+      value: {{ .namespace | quote }}
     - name: cluster-role
       value: "hub"
     - name: flavor
@@ -43,7 +43,7 @@ Hosted cluster flavor: HyperShift hosted cluster (after metadata validation).
 
 {{- end }}
 
-{{- define "pipelines.cleanup.hosted" -}}
+{{- define "qeCIPipelines.cleanup.hosted" -}}
 - name: destroy-hosted-cluster-if-succeeded
   when:
     - input: $(tasks.status)

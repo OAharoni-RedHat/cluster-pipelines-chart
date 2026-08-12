@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: destroy-hosted-cluster
-  namespace: {{ .Values.pipelineNamespace }}
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
   labels:
     {{- include "pipelines.labels" . | nindent 4 }}
 spec:
@@ -13,7 +13,7 @@ spec:
       default: ""
     - name: namespace
       type: string
-      default: {{ .Values.pipelineNamespace }}
+      default: {{ .Values.qeCIPipelines.defaults.namespace }}
   workspaces:
     - name: creds
       description: Holds generated aws sts creds
@@ -30,7 +30,7 @@ spec:
         CREDS_DIR="$(workspaces.creds.path)"
         STS_CREDS="${CREDS_DIR}/sts-creds.json"
 
-        ROLE_ARN={{ .Values.pipelines.defaults.hcpARN }}
+        ROLE_ARN={{ .Values.qeCIPipelines.defaults.hcpARN }}
 
 
         hcp destroy cluster aws \

@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: validate-pattern-metadata
-  namespace: {{ .Values.pipelineNamespace }}
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
   labels:
     {{- include "pipelines.labels" . | nindent 4 }}
 spec:
@@ -46,7 +46,7 @@ spec:
           type: string
   steps:
     - name: validate
-      image: {{ .Values.pipelines.defaults.utilityContainerImg }}
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
       script: |
         #!/usr/bin/env bash
         set -euo pipefail

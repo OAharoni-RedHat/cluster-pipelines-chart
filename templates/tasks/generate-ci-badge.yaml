@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: generate-ci-badge
-  namespace: {{ .Values.pipelineNamespace }}
+  namespace: {{ .Values.qeCIPipelines.defaults.namespace }}
   labels:
     {{- include "pipelines.labels" . | nindent 4 }}
 spec:
@@ -45,14 +45,14 @@ spec:
     - name: pipeline-name
       type: string
   volumes:
-  - name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
+  - name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
     secret:
-      secretName: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
+      secretName: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
   workspaces:
     - name: results
   steps:
     - name: generate-badge
-      image: {{ .Values.pipelines.defaults.utilityContainerImg }}
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
       script: |
         #!/usr/bin/env bash
 
@@ -146,9 +146,9 @@ spec:
 
 
     - name: upload-badge
-      image: {{ .Values.pipelines.defaults.utilityContainerImg }}
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
       volumeMounts:
-      - name: {{ .Values.pipelines.defaults.platforms.aws.credentialName }}
+      - name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
         mountPath: /tekton/home/.aws
       when:
         - cel: "'$(params.pattern-repo-url)'.contains('github.com/validatedpatterns')"

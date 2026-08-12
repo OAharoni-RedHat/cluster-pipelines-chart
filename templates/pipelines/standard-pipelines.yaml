@@ -1,6 +1,6 @@
-{{- $_ := include "pipelines.validatePatternSecrets" $ }}
-{{- range $patternName, $app := .Values.pipelines.patterns }}
-  {{- $flavors := include "pipelines.supportedFlavors" (dict
+{{- $_ := include "qeCIPipelines.validatePatternSecrets" $ }}
+{{- range $patternName, $app := .Values.qeCIPipelines.patterns }}
+  {{- $flavors := include "qeCIPipelines.supportedFlavors" (dict
         "root" $
         "app" $app
       ) | fromJson }}
@@ -9,7 +9,7 @@
         "app" $app
       ) | fromJson }}
   {{- range $flavorName, $flavorCfg := $flavors }}
-    {{- $platforms := include "pipelines.supportedPlatformsForFlavor" (dict
+    {{- $platforms := include "qeCIPipelines.supportedPlatformsForFlavor" (dict
           "root" $
           "app" $app
           "flavorName" $flavorName
@@ -26,14 +26,14 @@
               "flavorName" $flavorName
               "flavorCfg" $flavorCfg
               "repo" (default "" $app.repo)
-              "pipelineNamespace" $.Values.pipelineNamespace
+              "namespace" $.Values.qeCIPipelines.defaults.namespace
             }}
 ---
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
   name: {{ printf "%s-%s-%s-%s" $patternName $platformName ($ocpVersion | replace "." "-") $flavorName }}
-  namespace: {{ $.Values.pipelineNamespace }}
+  namespace: {{ $.Values.qeCIPipelines.defaults.namespace }}
   labels:
     pattern.name: {{ $patternName }}
     pattern.platform: {{ $platformName }}
@@ -44,13 +44,6 @@ spec:
     Pattern test pipeline for {{ $patternName }} on {{ $platformName }} (OCP {{ $ocpVersion }}, {{ $flavorName }}).
     Checkout and validate metadata, provision, install, test, cleanup.
   params:
-      # This is some workaround for an issue where pvc created from VolumeClaimTemplate in the UI is not bound
-      # because of the missing storage class
-    - name: STORAGE_CLASS
-      type: string
-      description: >
-        Do not change this, this is needed as a workaround.
-      default: gp3-csi
     - name: pattern-repo-url
       type: string
       description: Git URL of the pattern to test (override for forks)
@@ -75,19 +68,19 @@ spec:
     - name: shared-data
     {{- if $app.secrets }}
     {{- range $entry := $app.secrets }}
-    {{- $wsName := include "pipelines.secretWorkspaceName" (include "pipelines.patternSecretName" $entry) }}
+    {{- $wsName := include "qeCIPipelines.secretWorkspaceName" (include "qeCIPipelines.patternSecretName" $entry) }}
     - name: {{ $wsName }}
     {{- end }}
     {{- end }}
   tasks:
-    {{- include "pipelines.tasks.setup" $ctx | nindent 4 }}
-    {{- $provisionTpl := printf "pipelines.provision.%s" $flavorName -}}
+    {{- include "qeCIPipelines.tasks.setup" $ctx | nindent 4 }}
+    {{- $provisionTpl := printf "qeCIPipelines.provision.%s" $flavorName -}}
     {{- include $provisionTpl $ctx | nindent 4 }}
-    {{- include "pipelines.tasks.post-provision" $ctx | nindent 4 }}
+    {{- include "qeCIPipelines.tasks.post-provision" $ctx | nindent 4 }}
   finally:
-    {{- $cleanupTpl := printf "pipelines.cleanup.%s" $flavorName -}}
+    {{- $cleanupTpl := printf "qeCIPipelines.cleanup.%s" $flavorName -}}
     {{- include $cleanupTpl $ctx | nindent 4 }}
-    {{- include "pipelines.finally.common" $ctx | nindent 4 }}
+    {{- include "qeCIPipelines.finally.common" $ctx | nindent 4 }}
       {{- end }}
     {{- end }}
   {{- end }}

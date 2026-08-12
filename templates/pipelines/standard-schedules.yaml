@@ -1,9 +1,9 @@
-{{- if .Values.pipelines.schedules }}
-{{- $defaults := default dict .Values.pipelines.scheduleDefaults }}
-{{- $namespace := .Values.pipelineNamespace }}
+{{- if .Values.qeCIPipelines.schedules }}
+{{- $defaults := default dict .Values.qeCIPipelines.scheduleDefaults }}
+{{- $namespace := .Values.qeCIPipelines.defaults.namespace }}
 {{- $saName := "pipeline" }}
 {{- $triggerImage := default .Values.toolsImage $defaults.triggerImage }}
-{{- range .Values.pipelines.schedules }}
+{{- range .Values.qeCIPipelines.schedules }}
 {{- $pipeline := required "each schedule must set pipeline" .pipeline }}
 {{- $cron := required "each schedule must set cron" .cron }}
 {{- $suspend := default (default false $defaults.suspend) .suspend }}
@@ -16,13 +16,13 @@
 {{- $finallyTimeout := default (default "30m" $defaults.finallyTimeout) .finallyTimeout }}
 {{- $pipelineSecrets := list -}}
 {{- $bestPatternLen := 0 -}}
-{{- range $patternName, $app := $.Values.pipelines.patterns }}
+{{- range $patternName, $app := $.Values.qeCIPipelines.patterns }}
 {{- if and $app.secrets (hasPrefix (printf "%s-" $patternName) $pipeline) (gt (len $patternName) $bestPatternLen) }}
 {{- $bestPatternLen = len $patternName }}
 {{- $pipelineSecrets = list }}
 {{- range $entry := $app.secrets }}
-{{- $secretName := include "pipelines.patternSecretName" $entry }}
-{{- $workspace := include "pipelines.secretWorkspaceName" $secretName }}
+{{- $secretName := include "qeCIPipelines.patternSecretName" $entry }}
+{{- $workspace := include "qeCIPipelines.secretWorkspaceName" $secretName }}
 {{- $pipelineSecrets = append $pipelineSecrets (dict "name" $secretName "workspace" $workspace) }}
 {{- end }}
 {{- end }}
@@ -37,7 +37,7 @@ metadata:
   namespace: {{ $namespace }}
   labels:
     {{- include "pipelines.labels" $ | nindent 4 }}
-    pipelines.cluster-provisioning/schedule: "true"
+    qeCIPipelines.cluster-provisioning/schedule: "true"
     tekton.dev/pipeline: {{ $pipeline | quote }}
 data:
   pipelinerun.yaml: |
