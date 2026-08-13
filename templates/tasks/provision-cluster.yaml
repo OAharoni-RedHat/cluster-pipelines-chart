@@ -82,6 +82,14 @@ spec:
     - name: service-network-cidr
       type: string
       default: "{{ index .Values.pipelines.defaults.networking.serviceNetwork 0 }}"
+    - name: skip-acm-auto-import
+      type: string
+      default: "false"
+      description: >
+        When "true", omit the cluster.open-cluster-management.io/clusterset label
+        from the ClusterDeployment so Hive does NOT auto-create a ManagedCluster.
+        Use for patterns (like multi-DR) that manage their own ACM spoke import
+        through ArgoCD/ACM charts, to avoid conflicting ManagedCluster names.
 
   results:
     - name: cluster-name
@@ -313,6 +321,18 @@ spec:
           azure) CLOUD_LABEL="Azure" ;;
         esac
 
+        SKIP_ACM_IMPORT="$(params.skip-acm-auto-import)"
+
+        # Build the clusterset label line conditionally.
+        # Omit it when skip-acm-auto-import=true so Hive does NOT auto-create a
+        # ManagedCluster; the pattern's own ACM chart will then import the cluster
+        # under the correct name (e.g. ocp-primary / ocp-secondary).
+        if [ "${SKIP_ACM_IMPORT}" != "true" ]; then
+          CLUSTERSET_LABEL="    cluster.open-cluster-management.io/clusterset: default"
+        else
+          CLUSTERSET_LABEL=""
+        fi
+
         cat > "${OUT}" <<EOF
         apiVersion: hive.openshift.io/v1
         kind: ClusterDeployment
@@ -323,7 +343,7 @@ spec:
             cloud: ${CLOUD_LABEL}
             region: ${CLOUD_REGION}
             vendor: OpenShift
-            cluster.open-cluster-management.io/clusterset: default
+        ${CLUSTERSET_LABEL}
           annotations:
             hive.openshift.io/delete-after: "8h"
         spec:

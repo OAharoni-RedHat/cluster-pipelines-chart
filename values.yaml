@@ -140,6 +140,12 @@ qeCIPipelines:
       repo: https://github.com/validatedpatterns/ramendr-starter-kit.git
       revision: main
       awsCredsSecret: qe-ci-aws-creds
+      # ACM ManagedCluster names for the two DR spokes.
+      # These MUST match clusterOverrides.primary.name / secondary.name in
+      # the pattern's values-cluster-names.yaml so that ACM policies (CA bundle,
+      # DRCluster placement) select the right clusters.
+      spokePrimaryAcmName: ocp-primary
+      spokeSecondaryAcmName: ocp-secondary
       platforms:
         aws:
       flavors:

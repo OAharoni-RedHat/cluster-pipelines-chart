@@ -137,60 +137,17 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
       workspace: shared-data
       subPath: kubeconfig
 {{- else if eq .flavorName "multi-dr" }}
-- name: import-spoke-primary
-  onError: continue
-  runAfter:
-    - install-pattern
-  taskRef:
-    name: import-spoke-cluster
-  params:
-    - name: install-status
-      value: $(tasks.install-pattern.results.outcome)
-    - name: hub-cluster-name
-      value: $(tasks.provision-hub.results.cluster-name)
-    - name: spoke-cluster-name
-      value: $(tasks.provision-spoke-primary.results.cluster-name)
-  workspaces:
-    - name: pattern-repo
-      workspace: shared-data
-      subPath: pattern-repo
-    - name: kubeconfig
-      workspace: shared-data
-      subPath: kubeconfig
-- name: import-spoke-secondary
-  onError: continue
-  runAfter:
-    - install-pattern
-  taskRef:
-    name: import-spoke-cluster
-  params:
-    - name: install-status
-      value: $(tasks.install-pattern.results.outcome)
-    - name: hub-cluster-name
-      value: $(tasks.provision-hub.results.cluster-name)
-    - name: spoke-cluster-name
-      value: $(tasks.provision-spoke-secondary.results.cluster-name)
-  workspaces:
-    - name: pattern-repo
-      workspace: shared-data
-      subPath: pattern-repo
-    - name: kubeconfig
-      workspace: shared-data
-      subPath: kubeconfig
 - name: wait-hub-dr
   onError: continue
   runAfter:
-    - import-spoke-primary
-    - import-spoke-secondary
+    - install-pattern
   taskRef:
     name: wait-hub-dr
   params:
     - name: hub-cluster-name
       value: $(tasks.provision-hub.results.cluster-name)
-    - name: import-primary-status
-      value: $(tasks.import-spoke-primary.results.import-status)
-    - name: import-secondary-status
-      value: $(tasks.import-spoke-secondary.results.import-status)
+    - name: install-status
+      value: $(tasks.install-pattern.results.outcome)
   workspaces:
     - name: kubeconfig
       workspace: shared-data
