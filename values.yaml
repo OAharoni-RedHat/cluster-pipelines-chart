@@ -136,7 +136,7 @@ qeCIPipelines:
         - aeg-aap-manifest-file  # oc create secret generic aeg-aap-manifest-file -n vp-qe-ci --from-file=aap_manifest.zip=/home/aeros/Downloads/manifest_vp-aeros_20260709T084257Z.zip
         - aeg-aap-ssh-file       # oc create secret generic aeg-aap-ssh-file -n vp-qe-ci --from-file=id_rsa=aeg-qe-ssh --from-file=id_rsa.pub=aeg-qe-ssh.pub
 
-    ramendr:
+    ramen:
       repo: https://github.com/validatedpatterns/ramendr-starter-kit.git
       revision: main
       awsCredsSecret: qe-ci-aws-creds

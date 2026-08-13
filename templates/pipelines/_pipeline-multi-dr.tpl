@@ -10,12 +10,12 @@ Each cluster receives non-overlapping CIDRs to support Submariner and ODF multic
     ) -}}
 {{- $spokePrimaryParams := merge (deepCopy .) (dict
       "clusterBaseName" (printf "%s" .patternName)
-      "clusterRole" "spoke-primary"
+      "clusterRole" "pri"
       "namespace" (printf "%s" .pipelineNamespace)
     ) -}}
 {{- $spokeSecondaryParams := merge (deepCopy .) (dict
       "clusterBaseName" (printf "%s" .patternName)
-      "clusterRole" "spoke-secondary"
+      "clusterRole" "sec"
       "namespace" (printf "%s" .pipelineNamespace)
     ) -}}
 - name: provision-hub
