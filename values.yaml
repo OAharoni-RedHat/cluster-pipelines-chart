@@ -139,6 +139,8 @@ qeCIPipelines:
     ramen:
       repo: https://github.com/validatedpatterns/ramendr-starter-kit.git
       revision: main
+      ocp_versions:
+        - "4.22"
       awsCredsSecret: qe-ci-aws-creds
       # ACM ManagedCluster names for the two DR spokes.
       # These MUST match clusterOverrides.primary.name / secondary.name in
