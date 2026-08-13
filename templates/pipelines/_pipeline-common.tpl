@@ -41,6 +41,35 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
 {{- $patternSecrets = append $patternSecrets (dict "name" $name "workspace" $workspace "index" $i) -}}
 {{- end -}}
 {{- end -}}
+{{- if eq .flavorName "multi-dr" }}
+- name: prepare-dr-secrets
+  runAfter:
+    - provision-hub
+    - provision-spoke-primary
+    - provision-spoke-secondary
+  taskRef:
+    name: prepare-dr-secrets
+  params:
+    - name: spoke-primary-cluster-name
+      value: $(tasks.provision-spoke-primary.results.cluster-name)
+    - name: spoke-secondary-cluster-name
+      value: $(tasks.provision-spoke-secondary.results.cluster-name)
+    - name: aws-creds-secret-name
+      value: {{ default "" .app.awsCredsSecret | quote }}
+  workspaces:
+    - name: kubeconfig
+      workspace: shared-data
+      subPath: kubeconfig
+    - name: output
+      workspace: shared-data
+      subPath: prepared-values-secret
+    {{- range $i, $secret := $patternSecrets }}
+    {{- if eq $i 0 }}
+    - name: base-values-secret
+      workspace: {{ $secret.workspace }}
+    {{- end }}
+    {{- end }}
+{{- end }}
 - name: install-pattern
   onError: continue
   runAfter:
@@ -50,9 +79,7 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     - provision-hub
     - provision-spoke
     {{- else if eq .flavorName "multi-dr" }}
-    - provision-hub
-    - provision-spoke-primary
-    - provision-spoke-secondary
+    - prepare-dr-secrets
     {{- else }}
     - provision-hosted-cluster
     {{- end }}
@@ -71,14 +98,6 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     {{- end }}
     - name: target-clustergroup
       value: {{ include "qeCIPipelines.targetClusterGroup" . | quote }}
-    {{- if eq .flavorName "multi-dr" }}
-    - name: spoke-primary-cluster-name
-      value: $(tasks.provision-spoke-primary.results.cluster-name)
-    - name: spoke-secondary-cluster-name
-      value: $(tasks.provision-spoke-secondary.results.cluster-name)
-    - name: aws-creds-secret-name
-      value: {{ default "" .app.awsCredsSecret | quote }}
-    {{- end }}
   workspaces:
     - name: pattern-repo
       workspace: shared-data
@@ -86,9 +105,15 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     - name: kubeconfig
       workspace: shared-data
       subPath: kubeconfig
+    {{- if eq .flavorName "multi-dr" }}
+    - name: values-secret-0
+      workspace: shared-data
+      subPath: prepared-values-secret
+    {{- else }}
     {{- range $secret := $patternSecrets }}
     - name: values-secret-{{ $secret.index }}
       workspace: {{ $secret.workspace }}
+    {{- end }}
     {{- end }}
 {{- if eq .flavorName "multi" }}
 - name: import-spoke
