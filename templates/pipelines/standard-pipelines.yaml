@@ -64,6 +64,13 @@ spec:
         used so concurrent runs do not share a ClusterDeployment. Set to an existing
         postfix (e.g. srfbxw from a prior PipelineRun name) to reuse that cluster.
       default: ""
+    - name: print-login-info
+      type: string
+      description: >
+        When "true", print a ready-to-use oc login command and the kubeadmin password
+        to the provision task log after each cluster is provisioned. Useful for
+        manually accessing pipeline-provisioned clusters during debugging.
+      default: "false"
   workspaces:
     - name: shared-data
     {{- if $app.secrets }}

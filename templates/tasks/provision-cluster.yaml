@@ -92,7 +92,7 @@ spec:
         through ArgoCD/ACM charts, to avoid conflicting ManagedCluster names.
     - name: print-login-info
       type: string
-      default: "true"
+      default: "false"
       description: >
         When "true", print a ready-to-use oc login command and the kubeadmin
         password to the task log after the cluster is provisioned. Useful for

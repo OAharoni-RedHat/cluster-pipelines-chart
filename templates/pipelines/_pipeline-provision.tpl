@@ -17,5 +17,7 @@
   value: $(context.pipeline.name)
 - name: pipelinerun-uid
   value: $(context.pipelineRun.uid)
+- name: print-login-info
+  value: $(params.print-login-info)
 
 {{- end }}
