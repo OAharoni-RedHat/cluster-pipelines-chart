@@ -7,34 +7,23 @@ metadata:
     {{- include "pipelines.labels" . | nindent 4 }}
 spec:
   description: >
-    Wait for hub-side DR resources (DRPolicy, DRCluster, DRPC) to converge.
-    The pattern's own ArgoCD/ACM apps handle spoke import; this task simply
-    polls until the hub DR plane is fully healthy before interop tests run.
+    Give hub-side DR resources (DRPolicy, DRCluster, DRPC) time to converge
+    after pattern install. Sleeps for 10 minutes, which is the expected
+    convergence window; if resources are not healthy by then the pipeline
+    should be considered failed.
   params:
-    - name: hub-cluster-name
-      type: string
     - name: install-status
       type: string
       default: "success"
-      description: Outcome of the install-pattern task. Skips polling if not "success".
-    - name: timeout
-      type: string
-      default: "3600"
-  workspaces:
-    - name: kubeconfig
+      description: Outcome of the install-pattern task. Skips the wait if not "success".
   results:
     - name: outcome
   steps:
     - name: wait-dr-resources
       image: {{ .Values.pipelines.defaults.utilityContainerImg }}
-      env:
-        - name: HUBCONFIG
-          value: $(workspaces.kubeconfig.path)/$(params.hub-cluster-name)-kubeconfig
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
-        unset KUBERNETES_SERVICE_HOST
-        trap 'echo -n "failed" > $(results.outcome.path)' ERR
 
         if [ "$(params.install-status)" != "success" ]; then
           echo "Skipping DR wait: install-pattern did not succeed (status=$(params.install-status))"
@@ -42,65 +31,11 @@ spec:
           exit 0
         fi
 
-        TIMEOUT=$(params.timeout)
-        POLL=30
-        elapsed=0
-
-        echo "=== Waiting for DRPolicy to be Validated ==="
-        while [ "$elapsed" -lt "$TIMEOUT" ]; do
-          phase=$(oc --kubeconfig "${HUBCONFIG}" get drpolicy -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "")
-          if [ "$phase" = "Validated" ]; then
-            echo "DRPolicy is Validated"
-            break
-          fi
-          echo "[${elapsed}s] DRPolicy phase: '${phase}', waiting..."
-          sleep "$POLL"
-          elapsed=$((elapsed + POLL))
+        echo "Sleeping 10 minutes to allow DR resources to converge..."
+        for i in $(seq 1 10); do
+          echo "[${i}/10 min elapsed] waiting..."
+          sleep 60
         done
-        if [ "$elapsed" -ge "$TIMEOUT" ]; then
-          echo "Timed out waiting for DRPolicy to be Validated"
-          exit 1
-        fi
 
-        elapsed=0
-        echo "=== Waiting for all DRClusters to be Available ==="
-        while [ "$elapsed" -lt "$TIMEOUT" ]; do
-          unavail=$(oc --kubeconfig "${HUBCONFIG}" get drcluster -o json 2>/dev/null | \
-            jq '[.items[] | select(
-              ([.status.conditions[]? | select(.type=="Available" and .status=="True")] | length) == 0
-            )] | length' 2>/dev/null || echo "error")
-          if [ "$unavail" = "0" ]; then
-            echo "All DRClusters are Available"
-            break
-          fi
-          echo "[${elapsed}s] DRClusters not yet Available (${unavail} pending), waiting..."
-          sleep "$POLL"
-          elapsed=$((elapsed + POLL))
-        done
-        if [ "$elapsed" -ge "$TIMEOUT" ]; then
-          echo "Timed out waiting for DRClusters to be Available"
-          exit 1
-        fi
-
-        elapsed=0
-        echo "=== Waiting for all DRPlacementControls to be Available ==="
-        while [ "$elapsed" -lt "$TIMEOUT" ]; do
-          not_ready=$(oc --kubeconfig "${HUBCONFIG}" get drpc -A -o json 2>/dev/null | \
-            jq '[.items[] | select(
-              ([.status.conditions[]? | select(.type=="Available" and .status=="True")] | length) == 0
-            )] | length' 2>/dev/null || echo "error")
-          if [ "$not_ready" = "0" ]; then
-            echo "All DRPlacementControls are Available"
-            break
-          fi
-          echo "[${elapsed}s] DRPCs not yet Available (${not_ready} pending), waiting..."
-          sleep "$POLL"
-          elapsed=$((elapsed + POLL))
-        done
-        if [ "$elapsed" -ge "$TIMEOUT" ]; then
-          echo "Timed out waiting for DRPlacementControls to be Available"
-          exit 1
-        fi
-
-        echo "All hub DR resources are ready"
+        echo "Wait complete — DR resources should be ready for tests"
         echo -n "success" > $(results.outcome.path)

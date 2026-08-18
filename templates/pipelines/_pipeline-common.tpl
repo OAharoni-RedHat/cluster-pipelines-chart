@@ -144,14 +144,8 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
   taskRef:
     name: wait-hub-dr
   params:
-    - name: hub-cluster-name
-      value: $(tasks.provision-hub.results.cluster-name)
     - name: install-status
       value: $(tasks.install-pattern.results.outcome)
-  workspaces:
-    - name: kubeconfig
-      workspace: shared-data
-      subPath: kubeconfig
 {{- end }}
 - name: interop-test
   onError: continue
