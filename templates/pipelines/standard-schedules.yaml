@@ -37,7 +37,7 @@ metadata:
   namespace: {{ $namespace }}
   labels:
     {{- include "pipelines.labels" $ | nindent 4 }}
-    qeCIPipelines.cluster-provisioning/schedule: "true"
+    qecipipelines.cluster-provisioning/schedule: "true"
     tekton.dev/pipeline: {{ $pipeline | quote }}
 data:
   pipelinerun.yaml: |
@@ -105,9 +105,26 @@ spec:
         spec:
           serviceAccountName: {{ $saName }}
           restartPolicy: Never
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: trigger-pipelinerun
               image: {{ $triggerImage | quote }}
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
+                requests:
+                  cpu: "100m"
+                  memory: "128Mi"
               command:
                 - /bin/bash
                 - -ec

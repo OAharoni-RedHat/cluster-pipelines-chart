@@ -10,11 +10,11 @@ Running pipelines from the OpenShift Pipelines UI or CLI, and debugging or conne
 
 Rendering is driven by `templates/pipelines/standard-pipelines.yaml`. For every entry under `qeCIPipelines.patterns`, Helm computes three axes and emits one `Pipeline` per combination.
 
-| Axis | Values source | Resolution order |
-|------|----------------|------------------|
-| **Platforms** | `defaults.platforms` | Pattern may set `platforms:` (map). If set, only those platform keys are used (pattern map replaces the default set, it is not merged). If unset, all keys from `defaults.platforms` are used. |
-| **OCP versions** | `defaults.ocp_versions` | Pattern may set `ocp_versions:` (list or map). If unset, `defaults.ocp_versions` is used. |
-| **Flavors** | `defaults.flavors` | Pattern may set `flavors:` as a **map** (`single: { clusterGroup: ci }`) or **list** (`[single, multi]`). If unset, `defaults.flavors` is used (also map or list). |
+| Axis             | Values source           | Resolution order                                                                                                                                                                               |
+| ---------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Platforms**    | `defaults.platforms`    | Pattern may set `platforms:` (map). If set, only those platform keys are used (pattern map replaces the default set, it is not merged). If unset, all keys from `defaults.platforms` are used. |
+| **OCP versions** | `defaults.ocp_versions` | Pattern may set `ocp_versions:` (list or map). If unset, `defaults.ocp_versions` is used.                                                                                                      |
+| **Flavors**      | `defaults.flavors`      | Pattern may set `flavors:` as a **map** (`single: { clusterGroup: ci }`) or **list** (`[single, multi]`). If unset, `defaults.flavors` is used (also map or list).                             |
 
 Nested loops: **pattern** × **platform** × **ocp_version** × **flavor**.
 
@@ -48,12 +48,12 @@ Each pattern entry typically sets:
 
 Every generated pipeline exposes:
 
-| Param | Purpose |
-|-------|---------|
-| `pattern-repo-url` | Override pattern Git URL (forks). |
-| `pattern-repo-revision` | Override Git revision for this run. |
-| `force-skip-cleanup` | When `"true"`, a **successful** run skips Tekton-driven cluster deletion in `finally` for Hive flavors. See [Cluster cleanup and deprovisioning](#cluster-cleanup-and-deprovisioning). |
-| `cluster-name-postfix` | Optional 4–8 character lowercase alphanumeric suffix on the Hive cluster name. Empty (default): random suffix from the `PipelineRun` name after `{pipeline}-`. Set to that suffix (e.g. from the console) to reuse a `ClusterDeployment`. |
+| Param                   | Purpose                                                                                                                                                                                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pattern-repo-url`      | Override pattern Git URL (forks).                                                                                                                                                                                                         |
+| `pattern-repo-revision` | Override Git revision for this run.                                                                                                                                                                                                       |
+| `force-skip-cleanup`    | When `"true"`, a **successful** run skips Tekton-driven cluster deletion in `finally` for Hive flavors. See [Cluster cleanup and deprovisioning](#cluster-cleanup-and-deprovisioning).                                                    |
+| `cluster-name-postfix`  | Optional 4–8 character lowercase alphanumeric suffix on the Hive cluster name. Empty (default): random suffix from the `PipelineRun` name after `{pipeline}-`. Set to that suffix (e.g. from the console) to reuse a `ClusterDeployment`. |
 
 ### End-to-end task layout
 
@@ -77,7 +77,9 @@ setup → provision (flavor-specific) → post-provision → finally (cleanup + 
 Runs before any cluster exists for this run:
 
 1. **`checkout-pattern-repo`** — Clones the pattern repository into the `shared-data` workspace (`pattern-repo` subpath). URL and revision come from pipeline params (defaults from the pattern entry in values).
-2. **`validate-pattern-metadata`** — Reads `pattern-metadata.yaml` in the repo. Confirms the pipeline’s baked **platform** and **flavor** are supported (for example `extra_features.spoke_support` for `multi`, `extra_features.hypershift_support` for `hosted`). For Hive flavors, it checks that hub (and spoke, when applicable) have non-empty sizing for that platform—control plane `type` and replica counts—and passes those values through to provision. It does **not** validate yet that cloud-specific fields are correct (for example whether a machine **type** exists or is allowed in that region on AWS, GCP, or Azure); invalid types may only surface during Hive install.
+2. **`validate-pattern-metadata`** — Reads `pattern-metadata.yaml` in the repository. Confirms the pipeline’s baked **platform** and **flavor** are supported (for example `extra_features.spoke_support` for `multi`, `extra_features.hypershift_support` for `hosted`).
+   For Hive flavors, it checks that hub (and spoke, when applicable) have non-empty sizing for that platform—control plane `type` and replica counts—and passes those values through to provision.
+   It does **not** validate yet that cloud-specific fields are correct (for example whether a machine **type** exists or is allowed in that region on AWS, GCP, or Azure); invalid types may only surface during Hive install.
 
 If validation fails, provisioning does not start.
 
@@ -108,7 +110,7 @@ Naming uses `-hub-multi` and `-spoke-multi` suffix segments (role and flavor in 
 
 HyperShift **hosted cluster** on a management hub (not a full Hive standalone/spoke pair for the workload).
 
-- **`provision-hosted-cluster`** — Params: pattern name (`application`), platform, OCP version. Uses the `hcp-cli` image path configured in chart values. *(Implementation is still being wired; the task documents the intended deploy chain.)*
+- **`provision-hosted-cluster`** — Params: pattern name (`application`), platform, OCP version. Uses the `hcp-cli` image path configured in chart values. _(Implementation is still being wired; the task documents the intended deploy chain.)_
 
 Cleanup uses **`destroy-hosted-cluster`** instead of Hive `delete-cluster`.
 
@@ -116,8 +118,8 @@ Cleanup uses **`destroy-hosted-cluster`** instead of Hive `delete-cluster`.
 
 Runs after the relevant provision task(s) complete:
 
-1. **`install-pattern`** — Uses kubeconfig for the primary cluster (single: provisioned cluster; multi: **hub**; hosted: hosted cluster). Sets `TARGET_CLUSTERGROUP` from resolved `clusterGroup` (see below). Runs `./pattern.sh make install` in the checked-out repo. Optional pattern **secrets** are mounted as workspaces and copied into the task home directory for `values-secrets.yaml` references.
-2. **`import-spoke`** — **Multi only.** After install on the hub, when install succeeded, runs `./pattern.sh make import-default-spoke` in the pattern repo (hub and spoke kubeconfigs supplied via `VP_HUBCONFIG` / `VP_SPOKECONFIG`).
+1. **`install-pattern`** — Uses kubeconfig for the primary cluster (single: provisioned cluster; multi: **hub**; hosted: hosted cluster). Sets `TARGET_CLUSTERGROUP` from resolved `clusterGroup` (see below). Runs `./pattern.sh make install` in the checked-out repository. Optional pattern **secrets** are mounted as workspaces and copied into the task home directory for `values-secrets.yaml` references.
+2. **`import-spoke`** — **Multi only.** After install on the hub, when install succeeded, runs `./pattern.sh make import-default-spoke` in the pattern repository (hub and spoke kubeconfigs supplied via `VP_HUBCONFIG` / `VP_SPOKECONFIG`).
 3. **`interop-test`** — When install (and on multi, import) succeeded, runs `./pattern.sh make run-ci-tests` with the same `TARGET_CLUSTERGROUP` as install. Skipped with outcome `skipped` if a prior step failed.
 4. **`must-gather-hub`** / **`must-gather-spoke`** — On install or test failure (multi gathers both).
 5. **`upload-must-gather`** — Uploads archives when gather steps succeed.
@@ -179,10 +181,10 @@ Omit `platforms` entirely to use every platform defined in `defaults.platforms`.
 Set `ocp_versions` on the pattern (list or map). Omit to use `defaults.ocp_versions`.
 
 ```yaml
-    medical-diag:
-      ocp_versions:
-        - "4.20"
-        - "4.21"
+medical-diag:
+  ocp_versions:
+    - "4.20"
+    - "4.21"
 ```
 
 ### Flavor
@@ -190,12 +192,12 @@ Set `ocp_versions` on the pattern (list or map). Omit to use `defaults.ocp_versi
 Set `flavors` as a **list** (enable those flavors with empty config) or a **map** (per-flavor options).
 
 ```yaml
-    mcg:
-      flavors:
-        single:
-          clusterGroup: standalone
-        multi:
-        # hosted omitted → no hosted pipeline for mcg
+mcg:
+  flavors:
+    single:
+      clusterGroup: standalone
+    multi:
+    # hosted omitted → no hosted pipeline for mcg
 ```
 
 Omit `flavors` to use all entries from `defaults.flavors`.
@@ -205,9 +207,9 @@ To expose only one flavor, list or map only that key—other default flavors are
 ### Git source per pattern
 
 ```yaml
-    layered-zero:
-      repo: https://github.com/example/layered-zero-trust.git
-      revision: pipeline_test
+layered-zero:
+  repo: https://github.com/example/layered-zero-trust.git
+  revision: pipeline_test
 ```
 
 Overrides apply as pipeline param defaults; runs can still override via `pattern-repo-url` / `pattern-repo-revision` on the `PipelineRun`.
@@ -263,7 +265,7 @@ When starting a run yourself, bind each secret workspace in addition to `shared-
 workspaces:
   - name: shared-data
     volumeClaimTemplate: # ...
-  - name: aeg-secret-values-file   # hyphenated name
+  - name: aeg-secret-values-file # hyphenated name
     secret:
       secretName: aeg-secret-values-file
 ```
@@ -285,14 +287,14 @@ For each schedule entry, the chart creates:
 
 Under `qeCIPipelines.scheduleDefaults` (merged per entry):
 
-| Field | Typical purpose |
-|-------|------------------|
-| `suspend` | Pause all schedules when `true`. |
-| `concurrencyPolicy` | Default `Forbid` — skip a new run if the previous is still active. |
-| `successfulJobsHistoryLimit` / `failedJobsHistoryLimit` | CronJob history retention. |
-| `workspaceStorage` | PVC size for `shared-data` on scheduled runs. |
-| `timeout` / `taskTimeout` / `finallyTimeout` | Tekton `PipelineRun` timeout fields. |
-| `triggerImage` | Image for the CronJob container (defaults to `toolsImage`). |
+| Field                                                   | Typical purpose                                                    |
+| ------------------------------------------------------- | ------------------------------------------------------------------ |
+| `suspend`                                               | Pause all schedules when `true`.                                   |
+| `concurrencyPolicy`                                     | Default `Forbid` — skip a new run if the previous is still active. |
+| `successfulJobsHistoryLimit` / `failedJobsHistoryLimit` | CronJob history retention.                                         |
+| `workspaceStorage`                                      | PVC size for `shared-data` on scheduled runs.                      |
+| `timeout` / `taskTimeout` / `finallyTimeout`            | Tekton `PipelineRun` timeout fields.                               |
+| `triggerImage`                                          | Image for the CronJob container (defaults to `toolsImage`).        |
 
 ### Per-schedule entries
 
@@ -332,12 +334,13 @@ Hive provisioning builds the `ClusterDeployment` name from pattern, platform, OC
 <pattern>-<platform>-<ocp-version>-<role>-<flavor>-<suffix>
 ```
 
-- **Default (`cluster-name-postfix` empty)** — Suffix is the part of `$(context.pipelineRun.name)` after `$(context.pipeline.name)-` (the random segment from `generateName`, e.g. `srfbxw` in `layered-zero-aws-4-21-single-srfbxw`). If the run name does not match that pattern, the first five hex digits of the `PipelineRun` UID are used instead. Hub and spoke in **multi** share the same suffix for one run.
+- **Default (`cluster-name-postfix` empty)** — Suffix is the part of `$(context.pipelineRun.name)` after `$(context.pipeline.name)-` (the random segment from `generateName`, e.g. `srfbxw` in `layered-zero-aws-4-21-single-srfbxw`).
+  If the run name does not match that pattern, the first five hex digits of the `PipelineRun` UID are used instead. Hub and spoke in **multi** share the same suffix for one run.
 - **Override** — Set `cluster-name-postfix` on the `PipelineRun` to a 4–8 character `[a-z0-9]` value (typically the suffix from a prior run’s name). The run targets that `ClusterDeployment`: `oc apply` waits until Ready again (reuse). Concurrent runs with the **same** override still race on the same cluster.
 
 Re-applying the same `ClusterDeployment` name does not create a second cluster; an existing deployment is waited on again.
 
-### Tradeoffs
+### Trade-offs
 
 **Pros**
 
@@ -358,13 +361,13 @@ Mitigations: use `concurrencyPolicy: Forbid` on schedules when overlap is still 
 
 Brief pointers for operators:
 
-| Resource | Role |
-|----------|------|
-| `qeCIPipelines.defaults.namespace` | Namespace for Pipelines, Tasks, PipelineRuns, Hive `ClusterDeployment`s, and pattern Secrets. |
-| `serviceAccount` / RBAC | Provisioner identity for Hive, secrets, and cluster operations. |
-| `externalSecrets` + `platform-creds` / `global-pull-secret` | Cloud and pull credentials consumed during provision. |
-| `hypershift` / `hcpImage` | Hosted-cluster flavor configuration. |
-| `hive` | Default replica counts where metadata does not override. |
+| Resource                                                    | Role                                                                                          |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `qeCIPipelines.defaults.namespace`                          | Namespace for Pipelines, Tasks, PipelineRuns, Hive `ClusterDeployment`s, and pattern Secrets. |
+| `serviceAccount` / RBAC                                     | Provisioner identity for Hive, secrets, and cluster operations.                               |
+| `externalSecrets` + `platform-creds` / `global-pull-secret` | Cloud and pull credentials consumed during provision.                                         |
+| `hypershift` / `hcpImage`                                   | Hosted-cluster flavor configuration.                                                          |
+| `hive`                                                      | Default replica counts where metadata does not override.                                      |
 
 Task implementations live under `templates/tasks/`; flavor-specific pipeline fragments under `templates/pipelines/_pipeline-*.tpl`.
 
@@ -387,10 +390,10 @@ pipelines:
     my-pattern:
       repo: https://github.com/org/pattern.git
       revision: main
-      platforms: { aws: {} }      # optional subset
-      ocp_versions: ["4.21"]      # optional subset
-      flavors: { single: {} }       # optional subset + clusterGroup
-      secrets: [my-secret-name]   # optional
+      platforms: { aws: {} } # optional subset
+      ocp_versions: ["4.21"] # optional subset
+      flavors: { single: {} } # optional subset + clusterGroup
+      secrets: [my-secret-name] # optional
   scheduleDefaults: { ... }
   schedules:
     - pipeline: my-pattern-aws-4-21-single

@@ -11,3 +11,7 @@ skip-check:
   - CKV_K8S_156 # Minimize ClusterRoles that grant permissions to approve CertificateSigningRequests
   - CKV_K8S_157 # Minimize Roles and ClusterRoles that grant permissions to bind RoleBindings or ClusterRoleBindings
   - CKV_K8S_158 # Minimize Roles and ClusterRoles that grant permissions to escalate Roles or ClusterRoles
+  - CKV_K8S_38 # ServiceAccount token is required for oc to authenticate to the OpenShift API and create the PipelineRun
+  - CKV_K8S_14 # OpenShift-provided tools image is intentionally resolved from the cluster's openshift ImageStream
+  - CKV_K8S_43 # OpenShift-provided tools image is managed by the OpenShift release; digest pinning would decouple it from the cluster release
+  - CKV_K8S_40 # OpenShift intentionally assigns the UID; no need to specify runAsUser

@@ -83,26 +83,11 @@ This chart is used to serve as the template for Validated Patterns Charts
 | qeCIPipelines.scheduleDefaults.timeout | string | `"3h"` |  |
 | qeCIPipelines.scheduleDefaults.workspaceStorage | string | `"1Gi"` |  |
 | qeCIPipelines.schedules[0].cron | string | `"0 6 * * 1"` |  |
-| qeCIPipelines.schedules[0].pipeline | string | `"mcg-aws-4-21-multi"` |  |
+| qeCIPipelines.schedules[0].pipeline | string | `"mcg-aws-4-18-multi"` |  |
 | qeCIPipelines.schedules[1].cron | string | `"0 6 * * 2"` |  |
-| qeCIPipelines.schedules[1].pipeline | string | `"mcg-aws-4-20-multi"` |  |
-| qeCIPipelines.schedules[2].cron | string | `"0 6 * * 2"` |  |
-| qeCIPipelines.schedules[2].pipeline | string | `"mcg-aws-4-20-single"` |  |
-| qeCIPipelines.schedules[3].cron | string | `"0 6 * * 3"` |  |
-| qeCIPipelines.schedules[3].finallyTimeout | string | `"30m"` |  |
-| qeCIPipelines.schedules[3].pipeline | string | `"ansible-edge-aws-4-21-single"` |  |
-| qeCIPipelines.schedules[3].taskTimeout | string | `"3h"` |  |
-| qeCIPipelines.schedules[3].timeout | string | `"4h"` |  |
-| qeCIPipelines.schedules[4].cron | string | `"0 6 * * 5"` |  |
-| qeCIPipelines.schedules[4].finallyTimeout | string | `"30m"` |  |
-| qeCIPipelines.schedules[4].pipeline | string | `"ansible-edge-aws-4-20-single"` |  |
-| qeCIPipelines.schedules[4].taskTimeout | string | `"3h"` |  |
-| qeCIPipelines.schedules[4].timeout | string | `"4h"` |  |
-| qeCIPipelines.schedules[5].cron | string | `"0 6 * * 2"` |  |
-| qeCIPipelines.schedules[5].finallyTimeout | string | `"30m"` |  |
-| qeCIPipelines.schedules[5].pipeline | string | `"layered-zero-aws-4-21-single"` |  |
-| qeCIPipelines.schedules[5].taskTimeout | string | `"3h"` |  |
-| qeCIPipelines.schedules[5].timeout | string | `"4h"` |  |
+| qeCIPipelines.schedules[1].pipeline | string | `"mcg-gcp-4-20-multi"` |  |
+| qeCIPipelines.schedules[2].cron | string | `"0 6 * * 3"` |  |
+| qeCIPipelines.schedules[2].pipeline | string | `"mcg-azure-4-20-single"` |  |
 | serviceAccount.create | bool | `true` |  |
 | serviceAccount.name | string | `"provisioner"` |  |
 | serviceAccount.namespace | string | `"cluster-provisioning"` |  |
