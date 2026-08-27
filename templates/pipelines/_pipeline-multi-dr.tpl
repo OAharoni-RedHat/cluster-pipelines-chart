@@ -71,6 +71,8 @@ Each cluster receives non-overlapping CIDRs to support Submariner and ODF multic
       value: {{ .root.Values.pipelines.defaults.networking.multiDr.spokePrimary.machineNetworkCidr | quote }}
     - name: service-network-cidr
       value: {{ .root.Values.pipelines.defaults.networking.multiDr.spokePrimary.serviceNetworkCidr | quote }}
+    - name: region
+      value: {{ default "" ((.app.platforms).aws).spokePrimaryRegion | quote }}
     - name: skip-acm-auto-import
       value: "true"
   workspaces:
@@ -103,6 +105,8 @@ Each cluster receives non-overlapping CIDRs to support Submariner and ODF multic
       value: {{ .root.Values.pipelines.defaults.networking.multiDr.spokeSecondary.machineNetworkCidr | quote }}
     - name: service-network-cidr
       value: {{ .root.Values.pipelines.defaults.networking.multiDr.spokeSecondary.serviceNetworkCidr | quote }}
+    - name: region
+      value: {{ default "" ((.app.platforms).aws).spokeSecondaryRegion | quote }}
     - name: skip-acm-auto-import
       value: "true"
   workspaces:

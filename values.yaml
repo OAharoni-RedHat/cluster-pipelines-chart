@@ -151,6 +151,11 @@ qeCIPipelines:
       spokeSecondaryAcmName: ocp-secondary
       platforms:
         aws:
+          # Per-cluster region overrides for the multi-dr flavor.
+          # Hub uses the default region (us-east-1).
+          # Spokes must be in different regions for meaningful DR.
+          spokePrimaryRegion: us-west-1
+          spokeSecondaryRegion: us-east-2
       flavors:
         multi-dr:
           clusterGroup: odf
