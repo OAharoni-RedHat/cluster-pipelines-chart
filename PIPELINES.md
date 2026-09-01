@@ -11,7 +11,7 @@ Running pipelines from the OpenShift Pipelines UI or CLI, and debugging or conne
 Rendering is driven by `templates/pipelines/standard-pipelines.yaml`. For every entry under `qeCIPipelines.patterns`, Helm computes three axes and emits one `Pipeline` per combination.
 
 | Axis | Values source | Resolution order |
-|------|----------------|------------------|
+| ---- | -------------- | ---------------- |
 | **Platforms** | `defaults.platforms` | Pattern may set `platforms:` (map). If set, only those platform keys are used (pattern map replaces the default set, it is not merged). If unset, all keys from `defaults.platforms` are used. |
 | **OCP versions** | `defaults.ocp_versions` | Pattern may set `ocp_versions:` (list or map). If unset, `defaults.ocp_versions` is used. |
 | **Flavors** | `defaults.flavors` | Pattern may set `flavors:` as a **map** (`single: { clusterGroup: ci }`) or **list** (`[single, multi]`). If unset, `defaults.flavors` is used (also map or list). |
@@ -49,7 +49,7 @@ Each pattern entry typically sets:
 Every generated pipeline exposes:
 
 | Param | Purpose |
-|-------|---------|
+| ----- | ------- |
 | `pattern-repo-url` | Override pattern Git URL (forks). |
 | `pattern-repo-revision` | Override Git revision for this run. |
 | `force-skip-cleanup` | When `"true"`, a **successful** run skips Tekton-driven cluster deletion in `finally` for Hive flavors. See [Cluster cleanup and deprovisioning](#cluster-cleanup-and-deprovisioning). |
@@ -77,7 +77,7 @@ setup → provision (flavor-specific) → post-provision → finally (cleanup + 
 Runs before any cluster exists for this run:
 
 1. **`checkout-pattern-repo`** — Clones the pattern repository into the `shared-data` workspace (`pattern-repo` subpath). URL and revision come from pipeline params (defaults from the pattern entry in values).
-2. **`validate-pattern-metadata`** — Reads `pattern-metadata.yaml` in the repo. Confirms the pipeline’s baked **platform** and **flavor** are supported (for example `extra_features.spoke_support` for `multi`, `extra_features.hypershift_support` for `hosted`). For Hive flavors, it checks that hub (and spoke, when applicable) have non-empty sizing for that platform—control plane `type` and replica counts—and passes those values through to provision. It does **not** validate yet that cloud-specific fields are correct (for example whether a machine **type** exists or is allowed in that region on AWS, GCP, or Azure); invalid types may only surface during Hive install.
+2. **`validate-pattern-metadata`** — Reads `pattern-metadata.yaml` in the repository. Confirms the pipeline’s baked **platform** and **flavor** are supported (for example `extra_features.spoke_support` for `multi`, `extra_features.hypershift_support` for `hosted`). For Hive flavors, it checks that hub (and spoke, when applicable) have non-empty sizing for that platform—control plane `type` and replica counts—and passes those values through to provision. It does **not** validate yet that cloud-specific fields are correct (for example whether a machine **type** exists or is allowed in that region on AWS, GCP, or Azure); invalid types may only surface during Hive install.
 
 If validation fails, provisioning does not start.
 
@@ -116,8 +116,8 @@ Cleanup uses **`destroy-hosted-cluster`** instead of Hive `delete-cluster`.
 
 Runs after the relevant provision task(s) complete:
 
-1. **`install-pattern`** — Uses kubeconfig for the primary cluster (single: provisioned cluster; multi: **hub**; hosted: hosted cluster). Sets `TARGET_CLUSTERGROUP` from resolved `clusterGroup` (see below). Runs `./pattern.sh make install` in the checked-out repo. Optional pattern **secrets** are mounted as workspaces and copied into the task home directory for `values-secrets.yaml` references.
-2. **`import-spoke`** — **Multi only.** After install on the hub, when install succeeded, runs `./pattern.sh make import-default-spoke` in the pattern repo (hub and spoke kubeconfigs supplied via `VP_HUBCONFIG` / `VP_SPOKECONFIG`).
+1. **`install-pattern`** — Uses kubeconfig for the primary cluster (single: provisioned cluster; multi: **hub**; hosted: hosted cluster). Sets `TARGET_CLUSTERGROUP` from resolved `clusterGroup` (see below). Runs `./pattern.sh make install` in the checked-out repository. Optional pattern **secrets** are mounted as workspaces and copied into the task home directory for `values-secrets.yaml` references.
+2. **`import-spoke`** — **Multi only.** After install on the hub, when install succeeded, runs `./pattern.sh make import-default-spoke` in the pattern repository (hub and spoke kubeconfigs supplied via `VP_HUBCONFIG` / `VP_SPOKECONFIG`).
 3. **`interop-test`** — When install (and on multi, import) succeeded, runs `./pattern.sh make run-ci-tests` with the same `TARGET_CLUSTERGROUP` as install. Skipped with outcome `skipped` if a prior step failed.
 4. **`must-gather-hub`** / **`must-gather-spoke`** — On install or test failure (multi gathers both).
 5. **`upload-must-gather`** — Uploads archives when gather steps succeed.
@@ -286,7 +286,7 @@ For each schedule entry, the chart creates:
 Under `qeCIPipelines.scheduleDefaults` (merged per entry):
 
 | Field | Typical purpose |
-|-------|------------------|
+| ----- | --------------- |
 | `suspend` | Pause all schedules when `true`. |
 | `concurrencyPolicy` | Default `Forbid` — skip a new run if the previous is still active. |
 | `successfulJobsHistoryLimit` / `failedJobsHistoryLimit` | CronJob history retention. |
@@ -337,7 +337,7 @@ Hive provisioning builds the `ClusterDeployment` name from pattern, platform, OC
 
 Re-applying the same `ClusterDeployment` name does not create a second cluster; an existing deployment is waited on again.
 
-### Tradeoffs
+### Trade-offs
 
 **Pros**
 
@@ -359,7 +359,7 @@ Mitigations: use `concurrencyPolicy: Forbid` on schedules when overlap is still 
 Brief pointers for operators:
 
 | Resource | Role |
-|----------|------|
+| -------- | ---- |
 | `qeCIPipelines.defaults.namespace` | Namespace for Pipelines, Tasks, PipelineRuns, Hive `ClusterDeployment`s, and pattern Secrets. |
 | `serviceAccount` / RBAC | Provisioner identity for Hive, secrets, and cluster operations. |
 | `externalSecrets` + `platform-creds` / `global-pull-secret` | Cloud and pull credentials consumed during provision. |

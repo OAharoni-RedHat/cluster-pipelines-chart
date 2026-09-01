@@ -40,6 +40,18 @@ This chart is used to serve as the template for Validated Patterns Charts
 | qeCIPipelines.defaults.networking.clusterNetwork[0].cidr | string | `"10.128.0.0/14"` |  |
 | qeCIPipelines.defaults.networking.clusterNetwork[0].hostPrefix | int | `23` |  |
 | qeCIPipelines.defaults.networking.machineNetwork[0].cidr | string | `"10.0.0.0/16"` |  |
+| qeCIPipelines.defaults.networking.multiDr.hub.clusterHostPrefix | int | `23` |  |
+| qeCIPipelines.defaults.networking.multiDr.hub.clusterNetworkCidr | string | `"10.128.0.0/14"` |  |
+| qeCIPipelines.defaults.networking.multiDr.hub.machineNetworkCidr | string | `"10.0.0.0/16"` |  |
+| qeCIPipelines.defaults.networking.multiDr.hub.serviceNetworkCidr | string | `"172.30.0.0/16"` |  |
+| qeCIPipelines.defaults.networking.multiDr.spokePrimary.clusterHostPrefix | int | `23` |  |
+| qeCIPipelines.defaults.networking.multiDr.spokePrimary.clusterNetworkCidr | string | `"10.132.0.0/14"` |  |
+| qeCIPipelines.defaults.networking.multiDr.spokePrimary.machineNetworkCidr | string | `"10.1.0.0/16"` |  |
+| qeCIPipelines.defaults.networking.multiDr.spokePrimary.serviceNetworkCidr | string | `"172.31.0.0/16"` |  |
+| qeCIPipelines.defaults.networking.multiDr.spokeSecondary.clusterHostPrefix | int | `23` |  |
+| qeCIPipelines.defaults.networking.multiDr.spokeSecondary.clusterNetworkCidr | string | `"10.136.0.0/14"` |  |
+| qeCIPipelines.defaults.networking.multiDr.spokeSecondary.machineNetworkCidr | string | `"10.2.0.0/16"` |  |
+| qeCIPipelines.defaults.networking.multiDr.spokeSecondary.serviceNetworkCidr | string | `"172.32.0.0/16"` |  |
 | qeCIPipelines.defaults.networking.networkType | string | `"OVNKubernetes"` |  |
 | qeCIPipelines.defaults.networking.serviceNetwork[0] | string | `"172.30.0.0/16"` |  |
 | qeCIPipelines.defaults.ocp_versions[0] | string | `"4.18"` |  |
@@ -74,6 +86,17 @@ This chart is used to serve as the template for Validated Patterns Charts
 | qeCIPipelines.patterns.mcg.flavors.multi | string | `nil` |  |
 | qeCIPipelines.patterns.mcg.flavors.single.clusterGroup | string | `"standalone"` |  |
 | qeCIPipelines.patterns.mcg.repo | string | `"https://github.com/validatedpatterns/multicloud-gitops.git"` |  |
+| qeCIPipelines.patterns.ramen.awsCredsSecret | string | `"qe-ci-aws-creds"` |  |
+| qeCIPipelines.patterns.ramen.flavors.multi-dr.clusterGroup | string | `"odf"` |  |
+| qeCIPipelines.patterns.ramen.ocp_versions[0] | string | `"4.20"` |  |
+| qeCIPipelines.patterns.ramen.ocp_versions[1] | string | `"4.22"` |  |
+| qeCIPipelines.patterns.ramen.platforms.aws.spokePrimaryRegion | string | `"us-west-1"` |  |
+| qeCIPipelines.patterns.ramen.platforms.aws.spokeSecondaryRegion | string | `"us-east-2"` |  |
+| qeCIPipelines.patterns.ramen.repo | string | `"https://github.com/validatedpatterns/ramendr-starter-kit.git"` |  |
+| qeCIPipelines.patterns.ramen.revision | string | `"main"` |  |
+| qeCIPipelines.patterns.ramen.secrets[0] | string | `"ramendr-secret-values-file"` |  |
+| qeCIPipelines.patterns.ramen.spokePrimaryAcmName | string | `"ocp-primary"` |  |
+| qeCIPipelines.patterns.ramen.spokeSecondaryAcmName | string | `"ocp-secondary"` |  |
 | qeCIPipelines.scheduleDefaults.concurrencyPolicy | string | `"Forbid"` |  |
 | qeCIPipelines.scheduleDefaults.failedJobsHistoryLimit | int | `3` |  |
 | qeCIPipelines.scheduleDefaults.finallyTimeout | string | `"30m"` |  |
@@ -83,26 +106,11 @@ This chart is used to serve as the template for Validated Patterns Charts
 | qeCIPipelines.scheduleDefaults.timeout | string | `"3h"` |  |
 | qeCIPipelines.scheduleDefaults.workspaceStorage | string | `"1Gi"` |  |
 | qeCIPipelines.schedules[0].cron | string | `"0 6 * * 1"` |  |
-| qeCIPipelines.schedules[0].pipeline | string | `"mcg-aws-4-21-multi"` |  |
+| qeCIPipelines.schedules[0].pipeline | string | `"mcg-aws-4-18-multi"` |  |
 | qeCIPipelines.schedules[1].cron | string | `"0 6 * * 2"` |  |
-| qeCIPipelines.schedules[1].pipeline | string | `"mcg-aws-4-20-multi"` |  |
-| qeCIPipelines.schedules[2].cron | string | `"0 6 * * 2"` |  |
-| qeCIPipelines.schedules[2].pipeline | string | `"mcg-aws-4-20-single"` |  |
-| qeCIPipelines.schedules[3].cron | string | `"0 6 * * 3"` |  |
-| qeCIPipelines.schedules[3].finallyTimeout | string | `"30m"` |  |
-| qeCIPipelines.schedules[3].pipeline | string | `"ansible-edge-aws-4-21-single"` |  |
-| qeCIPipelines.schedules[3].taskTimeout | string | `"3h"` |  |
-| qeCIPipelines.schedules[3].timeout | string | `"4h"` |  |
-| qeCIPipelines.schedules[4].cron | string | `"0 6 * * 5"` |  |
-| qeCIPipelines.schedules[4].finallyTimeout | string | `"30m"` |  |
-| qeCIPipelines.schedules[4].pipeline | string | `"ansible-edge-aws-4-20-single"` |  |
-| qeCIPipelines.schedules[4].taskTimeout | string | `"3h"` |  |
-| qeCIPipelines.schedules[4].timeout | string | `"4h"` |  |
-| qeCIPipelines.schedules[5].cron | string | `"0 6 * * 2"` |  |
-| qeCIPipelines.schedules[5].finallyTimeout | string | `"30m"` |  |
-| qeCIPipelines.schedules[5].pipeline | string | `"layered-zero-aws-4-21-single"` |  |
-| qeCIPipelines.schedules[5].taskTimeout | string | `"3h"` |  |
-| qeCIPipelines.schedules[5].timeout | string | `"4h"` |  |
+| qeCIPipelines.schedules[1].pipeline | string | `"mcg-gcp-4-20-multi"` |  |
+| qeCIPipelines.schedules[2].cron | string | `"0 6 * * 3"` |  |
+| qeCIPipelines.schedules[2].pipeline | string | `"mcg-azure-4-20-single"` |  |
 | serviceAccount.create | bool | `true` |  |
 | serviceAccount.name | string | `"provisioner"` |  |
 | serviceAccount.namespace | string | `"cluster-provisioning"` |  |
