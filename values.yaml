@@ -95,7 +95,8 @@ qeCIPipelines:
     # Tekton per-task timeout for provision-* pipeline tasks (oc wait on clusterdeployment/hostedcluster).
     provisionTaskTimeout: 2h
     hcpARN: arn:aws:iam::296267305927:role/hypershift_cli_role
-
+    ciBucket: vp-qe-ci-badges
+    mustGatherBucket: vp-qe-ci-must-gathers
   patterns:
     # These are the maintained tier
     mcg:

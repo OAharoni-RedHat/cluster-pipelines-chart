@@ -20,7 +20,7 @@ spec:
       type: string
     - name: aws-bucket
       type: string
-      default: "validated-patterns-ci-tests-poc"
+      default: {{ .Values.qeCIPipelines.defaults.mustGatherBucket }}
   steps:
     - name: upload-must-gathers
       image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
@@ -50,5 +50,5 @@ spec:
 
         tar -C "$SRC" -czf "$ARCHIVE" .
 
-        aws s3 cp ${ARCHIVE}  "s3://${AWS_BUCKET}/must-gathers/${PIPELINE_NAME}_${PIPELINERUN_ID}.gz"
+        aws s3 cp ${ARCHIVE}  "s3://${AWS_BUCKET}/${PIPELINE_NAME}_${PIPELINERUN_ID}.gz"
 

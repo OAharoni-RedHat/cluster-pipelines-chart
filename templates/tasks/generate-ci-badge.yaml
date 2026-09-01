@@ -30,9 +30,12 @@ spec:
     - name: interop-status
       type: string
       default: "skipped"
-    - name: aws-bucket
+    - name: badge-aws-bucket
       type: string
-      default: "validated-patterns-ci-tests-poc"
+      default: {{ .Values.qeCIPipelines.defaults.ciBucket }}
+    - name: must-gather-bucket
+      type: string
+      default: {{ .Values.qeCIPipelines.defaults.mustGatherBucket }}
     - name: must-gather-status
       type: string
       default: "Failed"
@@ -68,14 +71,14 @@ spec:
         CONSOLE_URL="https://console-openshift-console.{{ .Values.global.hubClusterDomain }}"
         TEKTON_URL="${CONSOLE_URL}/k8s/ns/${PIPELINE_NAMESPACE}/tekton.dev~v1~PipelineRun/${PIPELINERUN}"
 
-        AWS_BUCKET=$(params.aws-bucket)
+        AWS_BUCKET=$(params.must-gather-bucket)
 
         if [ "$(params.must-gather-status)" = "Succeeded" ]; then
-          DEBUG_INFO="s3://${AWS_BUCKET}/must-gathers/${PIPELINE_NAME}_${PIPELINERUN_ID}.gz"
+          DEBUG_INFO="s3://${AWS_BUCKET}/${PIPELINE_NAME}_${PIPELINERUN_ID}.gz"
         else
           DEBUG_INFO="Must gather was not running due to infra failure"
         fi
-       
+
         SCHEMA_VERSION=1
         TRIGGER_SOURCE="cron"
 
@@ -170,17 +173,14 @@ spec:
         OUTPUT_FILENAME=${PIPELINE_NAME}-stable-badge.json
         OUTPUT_FILE="$(workspaces.results.path)/${OUTPUT_FILENAME}"
 
-        AWS_BUCKET=$(params.aws-bucket)
-        
+        AWS_BUCKET=$(params.badge-aws-bucket)
+
         export AWS_ACCESS_KEY_ID="$(cat /tekton/home/.aws/aws_access_key_id)"
         export AWS_SECRET_ACCESS_KEY="$(cat /tekton/home/.aws/aws_secret_access_key)"
         export AWS_DEFAULT_REGION=eu-north-1
-        
+
         if [[ -f /tekton/home/.aws/aws_default_region ]]; then
             export AWS_DEFAULT_REGION="$(cat /tekton/home/.aws/aws_default_region)"
         fi
 
-        aws s3 cp ${OUTPUT_FILE}  "s3://${AWS_BUCKET}/ci-badges/"
-
-        # gcloud storage cp ${OUTPUT_FILE} ${config.badgeBucketURI}/${PATTERN_SHORT_NAME}-${INFRA_PROVIDER}-${OCP_VERSION}-stable-badge.json \
-        #     --project ${env.GCLOUD_CI_BADGE_PROJECT_ID}
+        aws s3 cp ${OUTPUT_FILE}  "s3://${AWS_BUCKET}/"
