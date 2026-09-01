@@ -260,6 +260,8 @@ Shared finally tasks (not flavor-specific cleanup).
       value: $(context.pipelineRun.uid)
     - name: pipeline-name
       value: $(context.pipeline.name)
+    - name: target-clustergroup
+      value: {{ include "qeCIPipelines.targetClusterGroup" . | quote }}
   workspaces:
     - name: results
       workspace: shared-data

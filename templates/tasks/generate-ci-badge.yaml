@@ -44,6 +44,9 @@ spec:
       type: string
     - name: pipeline-name
       type: string
+    - name: target-clustergroup
+      type: string
+      default: hub
   volumes:
   - name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
     secret:
@@ -104,6 +107,7 @@ spec:
         PATTERN_REPO=$(params.pattern-repo-url)
         PATTERN_BRANCH=$(params.pattern-repo-revision)
         PATTERN_SHORT_NAME="$(params.pattern-name)"
+        PATTERN_VARIANT="$(params.target-clustergroup)"
 
         TEST_SOURCE="Red Hat"
 
@@ -134,6 +138,7 @@ spec:
           "openshiftVersion": "${OPENSHIFT_VERSION}",
           "debugInfo": "${DEBUG_INFO}",
           "patternName": "${PATTERN_SHORT_NAME}",
+          "variant": "${PATTERN_VARIANT}"
           "testId": "${PIPELINERUN_ID}",
           "testSource": "${TEST_SOURCE}",
           "date": "${DATE}",
