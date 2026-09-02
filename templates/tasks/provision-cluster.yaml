@@ -70,6 +70,40 @@ spec:
         type:
           type: string
           default: ""
+    - name: cluster-network-cidr
+      type: string
+      default: "{{ (index .Values.pipelines.defaults.networking.clusterNetwork 0).cidr }}"
+    - name: cluster-host-prefix
+      type: string
+      default: "{{ (index .Values.pipelines.defaults.networking.clusterNetwork 0).hostPrefix }}"
+    - name: machine-network-cidr
+      type: string
+      default: "{{ (index .Values.pipelines.defaults.networking.machineNetwork 0).cidr }}"
+    - name: service-network-cidr
+      type: string
+      default: "{{ index .Values.pipelines.defaults.networking.serviceNetwork 0 }}"
+    - name: region
+      type: string
+      default: ""
+      description: >
+        AWS/GCP/Azure region override. When empty the platform default from
+        pipelines.defaults.platforms is used. Set to place a specific cluster
+        in a different region (e.g. spoke-primary in us-west-1).
+    - name: skip-acm-auto-import
+      type: string
+      default: "false"
+      description: >
+        When "true", omit the cluster.open-cluster-management.io/clusterset label
+        from the ClusterDeployment so Hive does NOT auto-create a ManagedCluster.
+        Use for patterns (like multi-DR) that manage their own ACM spoke import
+        through ArgoCD/ACM charts, to avoid conflicting ManagedCluster names.
+    - name: print-login-info
+      type: string
+      default: "false"
+      description: >
+        When "true", print a ready-to-use oc login command and the kubeadmin
+        password to the task log after the cluster is provisioned. Useful for
+        manual debugging of pipeline-provisioned clusters.
 
   results:
     - name: cluster-name
@@ -84,6 +118,8 @@ spec:
     - name: kubeconfig
     - name: install-config
       description: Holds generated install-config.yaml and clusterdeployment.yaml
+  stepTemplate:
+    imagePullPolicy: IfNotPresent
   steps:
     - name: get-openshift-version
       ref:
@@ -161,6 +197,11 @@ spec:
             exit 1
             ;;
         esac
+        # Override region if explicitly specified
+        if [ -n "$(params.region)" ]; then
+          CLOUD_REGION="$(params.region)"
+          echo "Region overridden to: ${CLOUD_REGION}"
+        fi
 
         mkdir -p "$(workspaces.install-config.path)"
 
@@ -204,13 +245,13 @@ spec:
           name: ${CLUSTER_NAME}
         networking:
           clusterNetwork:
-          - cidr: {{ (index .Values.qeCIPipelines.defaults.networking.clusterNetwork 0).cidr }}
-            hostPrefix: {{ (index .Values.qeCIPipelines.defaults.networking.clusterNetwork 0).hostPrefix }}
+          - cidr: $(params.cluster-network-cidr)
+            hostPrefix: $(params.cluster-host-prefix)
           machineNetwork:
-          - cidr: {{ (index .Values.qeCIPipelines.defaults.networking.machineNetwork 0).cidr }}
+          - cidr: $(params.machine-network-cidr)
           networkType: {{ .Values.qeCIPipelines.defaults.networking.networkType }}
           serviceNetwork:
-          - {{ index .Values.qeCIPipelines.defaults.networking.serviceNetwork 0 }}
+          - $(params.service-network-cidr)
         pullSecret: ""
         platform:
         EOF
@@ -292,12 +333,28 @@ spec:
             exit 1
             ;;
         esac
+        # Override region if explicitly specified
+        if [ -n "$(params.region)" ]; then
+          CLOUD_REGION="$(params.region)"
+        fi
 
         case "${PLATFORM}" in
           aws) CLOUD_LABEL="AWS" ;;
           gcp) CLOUD_LABEL="GCP" ;;
           azure) CLOUD_LABEL="Azure" ;;
         esac
+
+        SKIP_ACM_IMPORT="$(params.skip-acm-auto-import)"
+
+        # Build the clusterset label line conditionally.
+        # Omit it when skip-acm-auto-import=true so Hive does NOT auto-create a
+        # ManagedCluster; the pattern's own ACM chart will then import the cluster
+        # under the correct name (e.g. ocp-primary / ocp-secondary).
+        if [ "${SKIP_ACM_IMPORT}" != "true" ]; then
+          CLUSTERSET_LABEL="    cluster.open-cluster-management.io/clusterset: default"
+        else
+          CLUSTERSET_LABEL=""
+        fi
 
         cat > "${OUT}" <<EOF
         apiVersion: hive.openshift.io/v1
@@ -309,7 +366,7 @@ spec:
             cloud: ${CLOUD_LABEL}
             region: ${CLOUD_REGION}
             vendor: OpenShift
-            cluster.open-cluster-management.io/clusterset: default
+        ${CLUSTERSET_LABEL}
           annotations:
             hive.openshift.io/delete-after: "8h"
         spec:
@@ -438,3 +495,55 @@ spec:
         echo "Console: ${CONSOLE_URL}"
         echo "Kubeconfig: $(workspaces.kubeconfig.path)/${CLUSTER_NAME}-kubeconfig"
         echo "============================================"
+
+    - name: print-login-info
+      image: {{ .Values.toolsImage }}
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        if [ "$(params.print-login-info)" != "true" ]; then
+          echo "print-login-info not enabled, skipping."
+          exit 0
+        fi
+
+        CLUSTER_NAME=$(cat $(results.cluster-name.path))
+        NAMESPACE="$(params.namespace)"
+
+        API_URL=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "${NAMESPACE}" \
+          -o jsonpath='{.status.apiURL}' 2>/dev/null || echo "")
+
+        CONSOLE_URL=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "${NAMESPACE}" \
+          -o jsonpath='{.status.webConsoleURL}' 2>/dev/null || echo "")
+
+        PASSWORD_SECRET=$(oc get clusterdeployment "${CLUSTER_NAME}" \
+          -n "${NAMESPACE}" \
+          -o jsonpath='{.spec.clusterMetadata.adminPasswordSecretRef.name}' 2>/dev/null || echo "")
+
+        PASSWORD=""
+        if [ -n "${PASSWORD_SECRET}" ]; then
+          PASSWORD=$(oc get secret "${PASSWORD_SECRET}" \
+            -n "${NAMESPACE}" \
+            -o jsonpath='{.data.password}' | base64 -d 2>/dev/null || echo "")
+        fi
+
+        echo ""
+        echo "╔══════════════════════════════════════════════════╗"
+        echo "║           CLUSTER LOGIN INFORMATION              ║"
+        echo "╠══════════════════════════════════════════════════╣"
+        echo "  Cluster:  ${CLUSTER_NAME}"
+        echo "  Console:  ${CONSOLE_URL}"
+        echo ""
+        if [ -n "${API_URL}" ] && [ -n "${PASSWORD}" ]; then
+          echo "  CLI login command:"
+          echo "    oc login ${API_URL} -u kubeadmin -p ${PASSWORD}"
+          echo ""
+          echo "  Console password:  ${PASSWORD}"
+        else
+          echo "  WARNING: could not retrieve API URL or password."
+          echo "  API URL:  ${API_URL:-<not available>}"
+        fi
+        echo "╚══════════════════════════════════════════════════╝"
+        echo ""

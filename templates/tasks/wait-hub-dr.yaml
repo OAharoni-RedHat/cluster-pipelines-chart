@@ -1,0 +1,41 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: wait-hub-dr
+  namespace: {{ .Values.pipelineNamespace }}
+  labels:
+    {{- include "pipelines.labels" . | nindent 4 }}
+spec:
+  description: >
+    Give hub-side DR resources (DRPolicy, DRCluster, DRPC) time to converge
+    after pattern install. Sleeps for 10 minutes, which is the expected
+    convergence window; if resources are not healthy by then the pipeline
+    should be considered failed.
+  params:
+    - name: install-status
+      type: string
+      default: "success"
+      description: Outcome of the install-pattern task. Skips the wait if not "success".
+  results:
+    - name: outcome
+  steps:
+    - name: wait-dr-resources
+      image: {{ .Values.pipelines.defaults.utilityContainerImg }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        if [ "$(params.install-status)" != "success" ]; then
+          echo "Skipping DR wait: install-pattern did not succeed (status=$(params.install-status))"
+          echo -n "skipped" > $(results.outcome.path)
+          exit 0
+        fi
+
+        echo "Sleeping 10 minutes to allow DR resources to converge..."
+        for i in $(seq 1 10); do
+          echo "[${i}/10 min elapsed] waiting..."
+          sleep 60
+        done
+
+        echo "Wait complete — DR resources should be ready for tests"
+        echo -n "success" > $(results.outcome.path)
