@@ -97,13 +97,6 @@ spec:
         from the ClusterDeployment so Hive does NOT auto-create a ManagedCluster.
         Use for patterns (like multi-DR) that manage their own ACM spoke import
         through ArgoCD/ACM charts, to avoid conflicting ManagedCluster names.
-    - name: print-login-info
-      type: string
-      default: "false"
-      description: >
-        When "true", print a ready-to-use oc login command and the kubeadmin
-        password to the task log after the cluster is provisioned. Useful for
-        manual debugging of pipeline-provisioned clusters.
 
   results:
     - name: cluster-name
@@ -495,55 +488,3 @@ spec:
         echo "Console: ${CONSOLE_URL}"
         echo "Kubeconfig: $(workspaces.kubeconfig.path)/${CLUSTER_NAME}-kubeconfig"
         echo "============================================"
-
-    - name: print-login-info
-      image: {{ .Values.toolsImage }}
-      script: |
-        #!/bin/bash
-        set -euo pipefail
-
-        if [ "$(params.print-login-info)" != "true" ]; then
-          echo "print-login-info not enabled, skipping."
-          exit 0
-        fi
-
-        CLUSTER_NAME=$(cat $(results.cluster-name.path))
-        NAMESPACE="$(params.namespace)"
-
-        API_URL=$(oc get clusterdeployment "${CLUSTER_NAME}" \
-          -n "${NAMESPACE}" \
-          -o jsonpath='{.status.apiURL}' 2>/dev/null || echo "")
-
-        CONSOLE_URL=$(oc get clusterdeployment "${CLUSTER_NAME}" \
-          -n "${NAMESPACE}" \
-          -o jsonpath='{.status.webConsoleURL}' 2>/dev/null || echo "")
-
-        PASSWORD_SECRET=$(oc get clusterdeployment "${CLUSTER_NAME}" \
-          -n "${NAMESPACE}" \
-          -o jsonpath='{.spec.clusterMetadata.adminPasswordSecretRef.name}' 2>/dev/null || echo "")
-
-        PASSWORD=""
-        if [ -n "${PASSWORD_SECRET}" ]; then
-          PASSWORD=$(oc get secret "${PASSWORD_SECRET}" \
-            -n "${NAMESPACE}" \
-            -o jsonpath='{.data.password}' | base64 -d 2>/dev/null || echo "")
-        fi
-
-        echo ""
-        echo "╔══════════════════════════════════════════════════╗"
-        echo "║           CLUSTER LOGIN INFORMATION              ║"
-        echo "╠══════════════════════════════════════════════════╣"
-        echo "  Cluster:  ${CLUSTER_NAME}"
-        echo "  Console:  ${CONSOLE_URL}"
-        echo ""
-        if [ -n "${API_URL}" ] && [ -n "${PASSWORD}" ]; then
-          echo "  CLI login command:"
-          echo "    oc login ${API_URL} -u kubeadmin -p ${PASSWORD}"
-          echo ""
-          echo "  Console password:  ${PASSWORD}"
-        else
-          echo "  WARNING: could not retrieve API URL or password."
-          echo "  API URL:  ${API_URL:-<not available>}"
-        fi
-        echo "╚══════════════════════════════════════════════════╝"
-        echo ""
