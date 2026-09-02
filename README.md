@@ -1,6 +1,6 @@
 # cluster-pipelines
 
-![Version: 0.0.5](https://img.shields.io/badge/Version-0.0.5-informational?style=flat-square)
+![Version: 0.0.6](https://img.shields.io/badge/Version-0.0.6-informational?style=flat-square)
 
 A Helm chart that deploys cluster provisioning pipelines
 
@@ -30,11 +30,13 @@ This chart is used to serve as the template for Validated Patterns Charts
 | hypershift.hostedClusterNamespace | string | `"clusters"` |  |
 | klusterletAddon | object | `{}` |  |
 | pipelineNamespace | string | `"cluster-provisioning"` |  |
+| qeCIPipelines.defaults.ciBucket | string | `"vp-qe-ci-badges"` |  |
 | qeCIPipelines.defaults.flavors.hosted.clusterGroup | string | `"hub"` |  |
 | qeCIPipelines.defaults.flavors.hosted.platforms[0] | string | `"aws"` |  |
 | qeCIPipelines.defaults.flavors.multi.clusterGroup | string | `"hub"` |  |
 | qeCIPipelines.defaults.flavors.single.clusterGroup | string | `"hub"` |  |
 | qeCIPipelines.defaults.hcpARN | string | `"arn:aws:iam::296267305927:role/hypershift_cli_role"` |  |
+| qeCIPipelines.defaults.mustGatherBucket | string | `"vp-qe-ci-must-gathers"` |  |
 | qeCIPipelines.defaults.mustGatherImg | string | `"quay.io/validatedpatterns/must-gather"` |  |
 | qeCIPipelines.defaults.namespace | string | `"vp-qe-ci"` |  |
 | qeCIPipelines.defaults.networking.clusterNetwork[0].cidr | string | `"10.128.0.0/14"` |  |
@@ -42,9 +44,9 @@ This chart is used to serve as the template for Validated Patterns Charts
 | qeCIPipelines.defaults.networking.machineNetwork[0].cidr | string | `"10.0.0.0/16"` |  |
 | qeCIPipelines.defaults.networking.networkType | string | `"OVNKubernetes"` |  |
 | qeCIPipelines.defaults.networking.serviceNetwork[0] | string | `"172.30.0.0/16"` |  |
-| qeCIPipelines.defaults.ocp_versions[0] | string | `"4.18"` |  |
-| qeCIPipelines.defaults.ocp_versions[1] | string | `"4.20"` |  |
-| qeCIPipelines.defaults.ocp_versions[2] | string | `"4.21"` |  |
+| qeCIPipelines.defaults.ocp_versions[0] | string | `"4.20"` |  |
+| qeCIPipelines.defaults.ocp_versions[1] | string | `"4.21"` |  |
+| qeCIPipelines.defaults.ocp_versions[2] | string | `"4.22"` |  |
 | qeCIPipelines.defaults.platforms.aws.baseDomain | string | `"aws.validatedpatterns.io"` |  |
 | qeCIPipelines.defaults.platforms.aws.computeNodeIAMRole | string | `"vp-ocp-Worker-Role"` |  |
 | qeCIPipelines.defaults.platforms.aws.controlPlaneIAMRole | string | `"vp-ocp-ControlPlane-Role"` |  |
@@ -63,7 +65,6 @@ This chart is used to serve as the template for Validated Patterns Charts
 | qeCIPipelines.patterns.ansible-edge.flavors.single | string | `nil` |  |
 | qeCIPipelines.patterns.ansible-edge.platforms.aws | string | `nil` |  |
 | qeCIPipelines.patterns.ansible-edge.repo | string | `"https://github.com/darkdoc/ansible-edge-gitops.git"` |  |
-| qeCIPipelines.patterns.ansible-edge.revision | string | `"pipeline_test"` |  |
 | qeCIPipelines.patterns.ansible-edge.secrets[0] | string | `"aeg-secret-values-file"` |  |
 | qeCIPipelines.patterns.ansible-edge.secrets[1] | string | `"aeg-aap-manifest-file"` |  |
 | qeCIPipelines.patterns.ansible-edge.secrets[2] | string | `"aeg-aap-ssh-file"` |  |
@@ -82,12 +83,32 @@ This chart is used to serve as the template for Validated Patterns Charts
 | qeCIPipelines.scheduleDefaults.taskTimeout | string | `"2h"` |  |
 | qeCIPipelines.scheduleDefaults.timeout | string | `"3h"` |  |
 | qeCIPipelines.scheduleDefaults.workspaceStorage | string | `"1Gi"` |  |
-| qeCIPipelines.schedules[0].cron | string | `"0 6 * * 1"` |  |
-| qeCIPipelines.schedules[0].pipeline | string | `"mcg-aws-4-18-multi"` |  |
-| qeCIPipelines.schedules[1].cron | string | `"0 6 * * 2"` |  |
-| qeCIPipelines.schedules[1].pipeline | string | `"mcg-gcp-4-20-multi"` |  |
-| qeCIPipelines.schedules[2].cron | string | `"0 6 * * 3"` |  |
-| qeCIPipelines.schedules[2].pipeline | string | `"mcg-azure-4-20-single"` |  |
+| qeCIPipelines.schedules[0].cron | string | `"0 6 * * 4"` |  |
+| qeCIPipelines.schedules[0].pipeline | string | `"mcg-aws-4-22-multi"` |  |
+| qeCIPipelines.schedules[10].cron | string | `"0 6 * * 5"` |  |
+| qeCIPipelines.schedules[10].pipeline | string | `"ansible-edge-aws-4-20-single"` |  |
+| qeCIPipelines.schedules[11].cron | string | `"0 6 * * 5"` |  |
+| qeCIPipelines.schedules[11].pipeline | string | `"ansible-edge-aws-4-21-single"` |  |
+| qeCIPipelines.schedules[12].cron | string | `"0 7 * * 5"` |  |
+| qeCIPipelines.schedules[12].pipeline | string | `"ansible-edge-aws-4-22-single"` |  |
+| qeCIPipelines.schedules[1].cron | string | `"0 6 * * 4"` |  |
+| qeCIPipelines.schedules[1].pipeline | string | `"mcg-aws-4-21-multi"` |  |
+| qeCIPipelines.schedules[2].cron | string | `"0 7 * * 4"` |  |
+| qeCIPipelines.schedules[2].pipeline | string | `"mcg-azure-4-20-multi"` |  |
+| qeCIPipelines.schedules[3].cron | string | `"0 7 * * 4"` |  |
+| qeCIPipelines.schedules[3].pipeline | string | `"mcg-gcp-4-21-multi"` |  |
+| qeCIPipelines.schedules[4].cron | string | `"0 8 * * 4"` |  |
+| qeCIPipelines.schedules[4].pipeline | string | `"mcg-aws-4-20-single"` |  |
+| qeCIPipelines.schedules[5].cron | string | `"0 8 * * 4"` |  |
+| qeCIPipelines.schedules[5].pipeline | string | `"mcg-aws-4-21-single"` |  |
+| qeCIPipelines.schedules[6].cron | string | `"0 9 * * 4"` |  |
+| qeCIPipelines.schedules[6].pipeline | string | `"mcg-aws-4-22-single"` |  |
+| qeCIPipelines.schedules[7].cron | string | `"0 9 * * 4"` |  |
+| qeCIPipelines.schedules[7].pipeline | string | `"mcg-aws-4-20-hosted"` |  |
+| qeCIPipelines.schedules[8].cron | string | `"0 10 * * 4"` |  |
+| qeCIPipelines.schedules[8].pipeline | string | `"mcg-aws-4-21-hosted"` |  |
+| qeCIPipelines.schedules[9].cron | string | `"0 10 * * 4"` |  |
+| qeCIPipelines.schedules[9].pipeline | string | `"mcg-aws-4-22-hosted"` |  |
 | serviceAccount.create | bool | `true` |  |
 | serviceAccount.name | string | `"provisioner"` |  |
 | serviceAccount.namespace | string | `"cluster-provisioning"` |  |
