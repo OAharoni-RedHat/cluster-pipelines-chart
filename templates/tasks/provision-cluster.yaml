@@ -72,16 +72,16 @@ spec:
           default: ""
     - name: cluster-network-cidr
       type: string
-      default: "{{ (index .Values.pipelines.defaults.networking.clusterNetwork 0).cidr }}"
+      default: "{{ (index .Values.qeCIPipelines.defaults.networking.clusterNetwork 0).cidr }}"
     - name: cluster-host-prefix
       type: string
-      default: "{{ (index .Values.pipelines.defaults.networking.clusterNetwork 0).hostPrefix }}"
+      default: "{{ (index .Values.qeCIPipelines.defaults.networking.clusterNetwork 0).hostPrefix }}"
     - name: machine-network-cidr
       type: string
-      default: "{{ (index .Values.pipelines.defaults.networking.machineNetwork 0).cidr }}"
+      default: "{{ (index .Values.qeCIPipelines.defaults.networking.machineNetwork 0).cidr }}"
     - name: service-network-cidr
       type: string
-      default: "{{ index .Values.pipelines.defaults.networking.serviceNetwork 0 }}"
+      default: "{{ index .Values.qeCIPipelines.defaults.networking.serviceNetwork 0 }}"
     - name: region
       type: string
       default: ""

@@ -20,7 +20,7 @@ spec:
     - name: outcome
   steps:
     - name: wait-dr-resources
-      image: {{ .Values.pipelines.defaults.utilityContainerImg }}
+      image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
