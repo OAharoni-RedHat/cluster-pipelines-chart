@@ -171,32 +171,38 @@ qeCIPipelines:
   # Each entry creates a CronJob that starts a PipelineRun for an existing pipeline.
   # cron schedules are started on UTC times
   schedules:
-    - pipeline: mcg-aws-4-18-multi
-      cron: "0 6 * * 1" # Monday 6:00 UTC
-    - pipeline: mcg-gcp-4-20-multi
-      cron: "0 6 * * 2" # Tuesday 6:00 UTC
-    - pipeline: mcg-azure-4-20-single
-      cron: "0 6 * * 3" # Wednesday 6:00 UTC
-    # - pipeline: ansible-edge-aws-4-21-single
-    #   cron: "0 6 * * 3" # Wed 6:00 UTC
-    #   timeout: 4h
-    #   taskTimeout: 3h
-    #   finallyTimeout: 30m
-    # - pipeline: ansible-edge-aws-4-20-single
-    #   cron: "0 6 * * 5" # Fri 6:00 UTC
-    #   timeout: 4h
-    #   taskTimeout: 3h
-    #   finallyTimeout: 30m
-    # - pipeline: layered-zero-aws-4-21-single
-    #   cron: "0 6 * * 2" # Tue 6:00 UTC
-    #   timeout: 4h
-    #   taskTimeout: 3h
-    #   finallyTimeout: 30m
-    # - pipeline: ansible-edge-aws-4-21-single
-    #   cron: "0 3 * * 0"
-    #   timeout: 4h
-    #   taskTimeout: 3h
-    #   finallyTimeout: 30m
-    #   params:
-    #     - name: pattern-repo-revision
-    #       value: v2
+    # TODO these are running on a weekly sched. instead of bi-weekly/monthly for the transitioning phase
+
+    ## MCG
+    - pipeline: mcg-aws-4-22-multi # H 7 * * 1 %SOLUTION_DEFINITION=mcgitops-aws-ocp4.22
+      cron: "0 6 * * 4" # Thu 6:00 UTC
+    - pipeline: mcg-aws-4-21-multi # H 10 * * 1 %SOLUTION_DEFINITION=mcgitops-aws-ocp4.21
+      cron: "0 6 * * 4" # Thu 6:00 UTC
+    - pipeline: mcg-azure-4-20-multi # H 6 * * 1 %SOLUTION_DEFINITION=mcgitops-azure-ocp4.20
+      cron: "0 7 * * 4" # Thu 7:00 UTC
+    - pipeline: mcg-gcp-4-21-multi # # H 4 1 * * %SOLUTION_DEFINITION=mcgitops-gcp-ocp4.21
+      cron: "0 7 * * 4" # Thu 7:00 UTC
+
+    ## MCG - STANDALONE
+    - pipeline: mcg-aws-4-20-single # H 4 5 * * %SOLUTION_DEFINITION=mcgitopsstandalone-aws-ocp4.22
+      cron: "0 8 * * 4" # Thu 8:00 UTC
+    - pipeline: mcg-aws-4-21-single # H 4 6 * * %SOLUTION_DEFINITION=mcgitopsstandalone-aws-ocp4.21
+      cron: "0 8 * * 4" # Thu 8:00 UTC
+    - pipeline: mcg-aws-4-22-single # # H 4 7 * * %SOLUTION_DEFINITION=mcgitopsstandalone-aws-ocp4.20
+      cron: "0 9 * * 4" # Thu 9:00 UTC
+
+    ## MCG - HCP
+    - pipeline: mcg-aws-4-20-hosted # H 4 15 * * %SOLUTION_DEFINITION=mcgitopshcp-aws-ocp4.20
+      cron: "0 9 * * 4" # Thu 9:00 UTC
+    - pipeline: mcg-aws-4-21-hosted # H 4 16 * * %SOLUTION_DEFINITION=mcgitopshcp-aws-ocp4.21
+      cron: "0 10 * * 4" # Thu 10:00 UTC
+    - pipeline: mcg-aws-4-22-hosted # H 4 17 * * %SOLUTION_DEFINITION=mcgitopshcp-aws-ocp4.22
+      cron: "0 10 * * 4" # Thu 10:00 UTC
+
+    ## Ansible Edge
+    - pipeline: ansible-edge-aws-4-20-single # H 9 * * 2 %SOLUTION_DEFINITION=aegitops-aws-ocp4.20
+      cron: "0 6 * * 5" # Fri 6:00 UTC
+    - pipeline: ansible-edge-aws-4-21-single # H 10 * * 2 %SOLUTION_DEFINITION=aegitops-aws-ocp4.21
+      cron: "0 6 * * 5" # Fri 6:00 UTC
+    - pipeline: ansible-edge-aws-4-22-single # H 14 * * 2 %SOLUTION_DEFINITION=aegitops-aws-ocp4.22
+      cron: "0 7 * * 5" # Fri 7:00 UTC
