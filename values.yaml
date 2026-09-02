@@ -109,7 +109,6 @@ qeCIPipelines:
           clusterGroup: standalone
     ansible-edge:
       repo: https://github.com/darkdoc/ansible-edge-gitops.git
-      revision: pipeline_test
       platforms: #if empty, or unset it will be the defaults.platforms
         aws:
       flavors:
