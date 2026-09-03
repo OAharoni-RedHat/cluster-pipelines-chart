@@ -34,9 +34,9 @@ spec:
       env:
         - name: VP_HUBCONFIG
           value: $(workspaces.kubeconfig.path)/$(params.hub-cluster-name)-kubeconfig
-        - name: VP_OCP_PRIMARY
+        - name: VP_SPOKECONFIG
           value: $(workspaces.kubeconfig.path)/$(params.spoke-cluster-name)-kubeconfig
-        - name: VP_OCP_SECONDARY
+        - name: VP_SPOKECONFIG_SECONDARY
           value: $(workspaces.kubeconfig.path)/$(params.spoke-secondary-cluster-name)-kubeconfig
         - name: TARGET_CLUSTERGROUP
           value: $(params.target-clustergroup)
