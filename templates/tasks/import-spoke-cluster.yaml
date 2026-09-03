@@ -16,16 +16,7 @@ spec:
       default: ""
     - name: spoke-cluster-name
       type: string
-      default: ""
-    - name: acm-cluster-name
-      type: string
-      default: ""
-      description: >
-        Desired ACM ManagedCluster name for the spoke (e.g. ocp-primary).
-        When set, the import playbook registers the cluster under this name
-        and adds the clusterset label so CA-bundle policies can select it.
-        When empty, the name is derived from the kubeconfig current-context
-        (unreliable for Hive-provisioned clusters).
+      default: "success"
   workspaces:
     - name: pattern-repo
     - name: kubeconfig
@@ -37,10 +28,8 @@ spec:
       env:
         - name: VP_HUBCONFIG
           value: $(workspaces.kubeconfig.path)/$(params.hub-cluster-name)-kubeconfig
-        - name: VP_OCP_PRIMARY
+        - name: VP_SPOKECONFIG
           value: $(workspaces.kubeconfig.path)/$(params.spoke-cluster-name)-kubeconfig
-        - name: VP_ACM_CLUSTER_NAME
-          value: $(params.acm-cluster-name)
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
