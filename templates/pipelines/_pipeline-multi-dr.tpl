@@ -18,6 +18,10 @@ Each cluster receives non-overlapping CIDRs to support Submariner and ODF multic
       "clusterRole" "sec"
       "namespace" (printf "%s" .pipelineNamespace)
     ) -}}
+{{- $patternNet := default dict .app.networking -}}
+{{- $hubNet := default dict $patternNet.hub -}}
+{{- $spokePrimaryNet := default dict $patternNet.spokePrimary -}}
+{{- $spokeSecondaryNet := default dict $patternNet.spokeSecondary -}}
 - name: provision-hub
   runAfter:
     - validate-pattern-metadata
@@ -34,13 +38,13 @@ Each cluster receives non-overlapping CIDRs to support Submariner and ODF multic
     - name: compute-nodes-config
       value: $(tasks.validate-pattern-metadata.results.hub-compute-nodes[*])
     - name: cluster-network-cidr
-      value: {{ .root.Values.qeCIPipelines.defaults.networking.multiDr.hub.clusterNetworkCidr | quote }}
+      value: {{ $hubNet.clusterNetworkCidr | quote }}
     - name: cluster-host-prefix
-      value: {{ .root.Values.qeCIPipelines.defaults.networking.multiDr.hub.clusterHostPrefix | quote }}
+      value: {{ $hubNet.clusterHostPrefix | quote }}
     - name: machine-network-cidr
-      value: {{ .root.Values.qeCIPipelines.defaults.networking.multiDr.hub.machineNetworkCidr | quote }}
+      value: {{ $hubNet.machineNetworkCidr | quote }}
     - name: service-network-cidr
-      value: {{ .root.Values.qeCIPipelines.defaults.networking.multiDr.hub.serviceNetworkCidr | quote }}
+      value: {{ $hubNet.serviceNetworkCidr | quote }}
   workspaces:
     - name: kubeconfig
       workspace: shared-data
@@ -64,13 +68,13 @@ Each cluster receives non-overlapping CIDRs to support Submariner and ODF multic
     - name: compute-nodes-config
       value: $(tasks.validate-pattern-metadata.results.spoke-compute-nodes[*])
     - name: cluster-network-cidr
-      value: {{ .root.Values.qeCIPipelines.defaults.networking.multiDr.spokePrimary.clusterNetworkCidr | quote }}
+      value: {{ $spokePrimaryNet.clusterNetworkCidr | quote }}
     - name: cluster-host-prefix
-      value: {{ .root.Values.qeCIPipelines.defaults.networking.multiDr.spokePrimary.clusterHostPrefix | quote }}
+      value: {{ $spokePrimaryNet.clusterHostPrefix | quote }}
     - name: machine-network-cidr
-      value: {{ .root.Values.qeCIPipelines.defaults.networking.multiDr.spokePrimary.machineNetworkCidr | quote }}
+      value: {{ $spokePrimaryNet.machineNetworkCidr | quote }}
     - name: service-network-cidr
-      value: {{ .root.Values.qeCIPipelines.defaults.networking.multiDr.spokePrimary.serviceNetworkCidr | quote }}
+      value: {{ $spokePrimaryNet.serviceNetworkCidr | quote }}
     - name: region
       value: {{ default "" ((.app.platforms).aws).spokePrimaryRegion | quote }}
     - name: skip-acm-auto-import
@@ -98,13 +102,13 @@ Each cluster receives non-overlapping CIDRs to support Submariner and ODF multic
     - name: compute-nodes-config
       value: $(tasks.validate-pattern-metadata.results.spoke-compute-nodes[*])
     - name: cluster-network-cidr
-      value: {{ .root.Values.qeCIPipelines.defaults.networking.multiDr.spokeSecondary.clusterNetworkCidr | quote }}
+      value: {{ $spokeSecondaryNet.clusterNetworkCidr | quote }}
     - name: cluster-host-prefix
-      value: {{ .root.Values.qeCIPipelines.defaults.networking.multiDr.spokeSecondary.clusterHostPrefix | quote }}
+      value: {{ $spokeSecondaryNet.clusterHostPrefix | quote }}
     - name: machine-network-cidr
-      value: {{ .root.Values.qeCIPipelines.defaults.networking.multiDr.spokeSecondary.machineNetworkCidr | quote }}
+      value: {{ $spokeSecondaryNet.machineNetworkCidr | quote }}
     - name: service-network-cidr
-      value: {{ .root.Values.qeCIPipelines.defaults.networking.multiDr.spokeSecondary.serviceNetworkCidr | quote }}
+      value: {{ $spokeSecondaryNet.serviceNetworkCidr | quote }}
     - name: region
       value: {{ default "" ((.app.platforms).aws).spokeSecondaryRegion | quote }}
     - name: skip-acm-auto-import

@@ -90,22 +90,6 @@ qeCIPipelines:
         - cidr: 10.0.0.0/16
       serviceNetwork:
         - 172.30.0.0/16
-      multiDr:
-        hub:
-          clusterNetworkCidr: 10.128.0.0/14
-          clusterHostPrefix: 23
-          machineNetworkCidr: 10.0.0.0/16
-          serviceNetworkCidr: 172.30.0.0/16
-        spokePrimary:
-          clusterNetworkCidr: 10.132.0.0/14
-          clusterHostPrefix: 23
-          machineNetworkCidr: 10.1.0.0/16
-          serviceNetworkCidr: 172.31.0.0/16
-        spokeSecondary:
-          clusterNetworkCidr: 10.136.0.0/14
-          clusterHostPrefix: 23
-          machineNetworkCidr: 10.2.0.0/16
-          serviceNetworkCidr: 172.32.0.0/16
     mustGatherImg: quay.io/validatedpatterns/must-gather
     utilityContainerImg: quay.io/validatedpatterns/utility-container
     # Tekton per-task timeout for provision-* pipeline tasks (oc wait on clusterdeployment/hostedcluster).
@@ -155,6 +139,25 @@ qeCIPipelines:
           # Spokes must be in different regions for meaningful DR.
           spokePrimaryRegion: us-west-1
           spokeSecondaryRegion: us-east-2
+      # Per-cluster networking CIDRs for the multi-dr flavor.
+      # Each role must use non-overlapping ranges for Submariner and ODF replication.
+      # Falls back to qeCIPipelines.defaults.networking.multiDr if unset.
+      networking:
+        hub:
+          clusterNetworkCidr: 10.128.0.0/14
+          clusterHostPrefix: 23
+          machineNetworkCidr: 10.0.0.0/16
+          serviceNetworkCidr: 172.30.0.0/16
+        spokePrimary:
+          clusterNetworkCidr: 10.132.0.0/14
+          clusterHostPrefix: 23
+          machineNetworkCidr: 10.1.0.0/16
+          serviceNetworkCidr: 172.31.0.0/16
+        spokeSecondary:
+          clusterNetworkCidr: 10.136.0.0/14
+          clusterHostPrefix: 23
+          machineNetworkCidr: 10.2.0.0/16
+          serviceNetworkCidr: 172.32.0.0/16
       flavors:
         multi-dr:
           clusterGroup: odf
