@@ -54,8 +54,6 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
       value: $(tasks.provision-spoke-primary.results.cluster-name)
     - name: spoke-secondary-cluster-name
       value: $(tasks.provision-spoke-secondary.results.cluster-name)
-    - name: aws-creds-secret-name
-      value: {{ default "" .app.awsCredsSecret | quote }}
   workspaces:
     - name: kubeconfig
       workspace: shared-data

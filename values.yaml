@@ -142,7 +142,6 @@ qeCIPipelines:
       ocp_versions:
         - "4.20"
         - "4.22"
-      awsCredsSecret: qe-ci-aws-creds
       # ACM ManagedCluster names for the two DR spokes.
       # These MUST match clusterOverrides.primary.name / secondary.name in
       # the pattern's values-cluster-names.yaml so that ACM policies (CA bundle,
