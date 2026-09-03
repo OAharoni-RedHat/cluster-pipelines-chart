@@ -144,6 +144,12 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
   params:
     - name: install-status
       value: $(tasks.install-pattern.results.outcome)
+    - name: hub-cluster-name
+      value: $(tasks.provision-hub.results.cluster-name)
+  workspaces:
+    - name: kubeconfig
+      workspace: shared-data
+      subPath: kubeconfig
 {{- end }}
 - name: interop-test
   onError: continue

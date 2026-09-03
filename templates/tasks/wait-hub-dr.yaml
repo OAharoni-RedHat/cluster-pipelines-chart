@@ -7,23 +7,32 @@ metadata:
     {{- include "pipelines.labels" . | nindent 4 }}
 spec:
   description: >
-    Give hub-side DR resources (DRPolicy, DRCluster, DRPC) time to converge
-    after pattern install. Sleeps for 10 minutes, which is the expected
-    convergence window; if resources are not healthy by then the pipeline
-    should be considered failed.
+    Poll hub-side DRPlacementControl resources until all are Deployed and Available,
+    or time out after 15 minutes. On timeout, logs a warning and continues — does not
+    fail the pipeline so that interop-test can still run and report partial results.
   params:
     - name: install-status
       type: string
       default: "success"
       description: Outcome of the install-pattern task. Skips the wait if not "success".
+    - name: hub-cluster-name
+      type: string
+      description: Name of the hub cluster; used to locate its kubeconfig in the kubeconfig workspace.
+  workspaces:
+    - name: kubeconfig
+      description: Workspace containing provisioned cluster kubeconfigs written by provision-cluster.
   results:
     - name: outcome
   steps:
-    - name: wait-dr-resources
+    - name: wait-drpc-healthy
       image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
+      env:
+        - name: KUBECONFIG
+          value: $(workspaces.kubeconfig.path)/$(params.hub-cluster-name)-kubeconfig
       script: |
         #!/usr/bin/env bash
-        set -euo pipefail
+        set -uo pipefail
+        unset KUBERNETES_SERVICE_HOST
 
         if [ "$(params.install-status)" != "success" ]; then
           echo "Skipping DR wait: install-pattern did not succeed (status=$(params.install-status))"
@@ -31,11 +40,54 @@ spec:
           exit 0
         fi
 
-        echo "Sleeping 10 minutes to allow DR resources to converge..."
-        for i in $(seq 1 10); do
-          echo "[${i}/10 min elapsed] waiting..."
-          sleep 60
+        TIMEOUT_MINUTES=15
+        POLL_INTERVAL=30
+        MAX_ATTEMPTS=$(( TIMEOUT_MINUTES * 60 / POLL_INTERVAL ))
+
+        printf '%s\n' \
+          'import subprocess, json, sys' \
+          'try:' \
+          '    raw = subprocess.check_output(' \
+          '        ["oc", "get", "drpc", "--all-namespaces", "-o", "json"],' \
+          '        stderr=subprocess.STDOUT,' \
+          '    )' \
+          'except subprocess.CalledProcessError as e:' \
+          '    print("  oc get drpc failed:", e.output.decode().strip())' \
+          '    sys.exit(1)' \
+          'data = json.loads(raw)' \
+          'items = data.get("items", [])' \
+          'if not items:' \
+          '    print("  No DRPCs found yet, still waiting...")' \
+          '    sys.exit(1)' \
+          'all_healthy = True' \
+          'for drpc in items:' \
+          '    ns    = drpc["metadata"]["namespace"]' \
+          '    name  = drpc["metadata"]["name"]' \
+          '    phase = drpc.get("status", {}).get("phase", "<unknown>")' \
+          '    conds = drpc.get("status", {}).get("conditions", [])' \
+          '    available = next((c["status"] for c in conds if c.get("type") == "Available"), "False")' \
+          '    healthy = (phase == "Deployed" and available == "True")' \
+          '    mark = "OK" if healthy else "WAIT"' \
+          '    print("  [{}] {}/{}: phase={}, Available={}".format(mark, ns, name, phase, available))' \
+          '    if not healthy:' \
+          '        all_healthy = False' \
+          'sys.exit(0 if all_healthy else 1)' \
+          > /tmp/check_drpc.py
+
+        echo "Polling DRPlacementControl health (timeout: ${TIMEOUT_MINUTES}m, interval: ${POLL_INTERVAL}s)..."
+        for attempt in $(seq 1 $MAX_ATTEMPTS); do
+          echo "[attempt ${attempt}/${MAX_ATTEMPTS} — $(date -u '+%H:%M:%S UTC')]"
+          if python3 /tmp/check_drpc.py; then
+            echo "All DRPCs are Deployed and Available."
+            echo -n "success" > $(results.outcome.path)
+            exit 0
+          fi
+          if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
+            sleep $POLL_INTERVAL
+          fi
         done
 
-        echo "Wait complete — DR resources should be ready for tests"
-        echo -n "success" > $(results.outcome.path)
+        echo "WARNING: timed out after ${TIMEOUT_MINUTES} minutes waiting for DRPCs to become healthy."
+        echo "Continuing to interop-test — it may report partial results."
+        echo -n "timeout" > $(results.outcome.path)
+        exit 0
