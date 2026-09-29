@@ -189,11 +189,14 @@ qeCIPipelines:
     #     - hosted
     #     - single
 
-    # ragllm:
-    #   platforms:
-    #     aws:
-    #   flavors:
-    #     single:
+    ragllm:
+      repo: https://github.com/validatedpatterns/rag-llm-gitops.git
+      platforms:
+        aws:
+        azure:
+      flavors:
+        single:
+          clusterGroup: ci
 
   scheduleDefaults:
     suspend: false

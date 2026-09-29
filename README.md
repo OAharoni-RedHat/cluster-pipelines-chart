@@ -1,6 +1,6 @@
 # cluster-pipelines
 
-![Version: 0.0.7](https://img.shields.io/badge/Version-0.0.7-informational?style=flat-square)
+![Version: 0.0.8](https://img.shields.io/badge/Version-0.0.8-informational?style=flat-square)
 
 A Helm chart that deploys cluster provisioning pipelines
 
@@ -75,6 +75,10 @@ This chart is used to serve as the template for Validated Patterns Charts
 | qeCIPipelines.patterns.mcg.flavors.multi | string | `nil` |  |
 | qeCIPipelines.patterns.mcg.flavors.single.clusterGroup | string | `"standalone"` |  |
 | qeCIPipelines.patterns.mcg.repo | string | `"https://github.com/validatedpatterns/multicloud-gitops.git"` |  |
+| qeCIPipelines.patterns.ragllm.flavors.single.clusterGroup | string | `"ci"` |  |
+| qeCIPipelines.patterns.ragllm.platforms.aws | string | `nil` |  |
+| qeCIPipelines.patterns.ragllm.platforms.azure | string | `nil` |  |
+| qeCIPipelines.patterns.ragllm.repo | string | `"https://github.com/validatedpatterns/rag-llm-gitops.git"` |  |
 | qeCIPipelines.patterns.ramen.flavors.multi-dr.clusterGroup | string | `"odf"` |  |
 | qeCIPipelines.patterns.ramen.networking.hub.clusterHostPrefix | int | `23` |  |
 | qeCIPipelines.patterns.ramen.networking.hub.clusterNetworkCidr | string | `"10.128.0.0/14"` |  |
