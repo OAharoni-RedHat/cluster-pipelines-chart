@@ -166,16 +166,22 @@ qeCIPipelines:
         single: {}
       extraHelmOpts: "--set global.extraValueFiles[0]=/overrides/values-ci.yaml"
 
-    # travelops:
-    #   repo: https://github.com/validatedpatterns/travelops.git
-    #   flavors:
-    #     - single
+    travelops:
+      repo: https://github.com/validatedpatterns/travelops.git
+      flavors:
+        single: {}
+        hosted: {}
 
-    # hypershift:
-    #   repo: https://github.com/validatedpatterns-sandbox/hypershift
-    #   flavors:
-    #     - hosted
-    #     - single
+    hypershift:
+      repo: https://github.com/validatedpatterns-sandbox/hypershift
+      flavors:
+        single:
+          clusterGroup: staging
+        hosted:
+          clusterGroup: staging
+      secrets:
+        - hypershift-secret-values-file
+        - hypershift-aws-credentials-file
 
     ragllm:
       repo: https://github.com/validatedpatterns/rag-llm-gitops.git
@@ -235,3 +241,19 @@ qeCIPipelines:
       cron: "0 6 * * 5" # Fri 6:00 UTC
     - pipeline: ansible-edge-aws-4-22-single # H 14 * * 2 %SOLUTION_DEFINITION=aegitops-aws-ocp4.22
       cron: "0 7 * * 5" # Fri 7:00 UTC
+
+    ## Travelops - STANDALONE
+    - pipeline: travelops-aws-4-20-single # H 4 5 * * %SOLUTION_DEFINITION=travelops-aws-ocp4.22
+      cron: "0 8 * * 4" # Thu 8:00 UTC
+    - pipeline: travelops-aws-4-21-single # H 4 6 * * %SOLUTION_DEFINITION=travelops-aws-ocp4.21
+      cron: "0 8 * * 4" # Thu 8:00 UTC
+    - pipeline: travelops-aws-4-22-single # # H 4 7 * * %SOLUTION_DEFINITION=travelops-aws-ocp4.20
+      cron: "0 9 * * 4" # Thu 9:00 UTC
+
+    ## HyperShift - STANDALONE
+    - pipeline: hypershift-aws-4-20-single # H 4 5 * * %SOLUTION_DEFINITION=hypershift-aws-ocp4.22
+      cron: "0 8 * * 4" # Thu 8:00 UTC
+    - pipeline: hypershift-aws-4-21-single # H 4 6 * * %SOLUTION_DEFINITION=hypershift-aws-ocp4.21
+      cron: "0 8 * * 4" # Thu 8:00 UTC
+    - pipeline: hypershift-aws-4-22-single # # H 4 7 * * %SOLUTION_DEFINITION=hypershift-aws-ocp4.20
+      cron: "0 9 * * 4" # Thu 9:00 UTC

@@ -1,0 +1,17 @@
+suite: Test namespace with default values
+templates:
+  - templates/pipelines/standard-pipelines.yaml
+release:
+  name: release-test
+tests:
+  - it: should output  when defined as list
+    documentSelector:
+      path: metadata.labels["pattern.name"]
+      value: travelops
+      matchMany: true
+    isKind:
+      of: Pipeline
+    asserts:
+      - hasDocuments:
+          count: 12 # 3 * 3 * 3 - 2 * 3 * 1  (platform * versions * flavors) (hosted is only available on aws)
+          filterAware: true
