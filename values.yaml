@@ -125,6 +125,7 @@ qeCIPipelines:
       revision: main
       ocp_versions:
         - "4.20"
+        - "4.21"
         - "4.22"
       platforms:
         aws:
@@ -257,3 +258,11 @@ qeCIPipelines:
       cron: "0 8 * * 4" # Thu 8:00 UTC
     - pipeline: hypershift-aws-4-22-single # # H 4 7 * * %SOLUTION_DEFINITION=hypershift-aws-ocp4.20
       cron: "0 9 * * 4" # Thu 9:00 UTC
+
+    ## Ramen - MULTI-DR
+    - pipeline: ramen-aws-4-20-multi-dr
+      cron: "0 6 22-28 * 3" # 4th Wed of month 6:00 UTC
+    - pipeline: ramen-aws-4-21-multi-dr
+      cron: "0 9 22-28 * 3" # 4th Wed of month 9:00 UTC
+    - pipeline: ramen-aws-4-22-multi-dr
+      cron: "0 12 22-28 * 3" # 4th Wed of month 12:00 UTC
