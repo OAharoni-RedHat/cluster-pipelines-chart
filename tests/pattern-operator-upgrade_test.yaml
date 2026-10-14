@@ -1,0 +1,13 @@
+suite: Test pattern-operator upgrade
+templates:
+  - templates/pipelines/operator-pipelines.yaml
+release:
+  name: release-test
+tests:
+  - it: should output correct amount of pipelines
+    isKind:
+      of: Pipeline
+    asserts:
+      - hasDocuments:
+          count: 3 # (hosted, aws, 3 version)
+          filterAware: true
