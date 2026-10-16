@@ -183,6 +183,7 @@ qeCIPipelines:
       secrets:
         - hypershift-secret-values-file
         - hypershift-aws-credentials-file
+      extraHelmOpts: "--set global.hypershift.createBucket=false,global.hypershift.oidc.region=us-west-2,global.hypershift.oidc.bucketName=hypershift-vp-ci"
 
     ragllm:
       repo: https://github.com/validatedpatterns/rag-llm-gitops.git
