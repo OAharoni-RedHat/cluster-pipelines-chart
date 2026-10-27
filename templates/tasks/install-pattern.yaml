@@ -37,6 +37,8 @@ spec:
           value: $(params.target-clustergroup)
         - name: EXTRA_HELM_OPTS
           value: $(params.extra-helm-opts)
+        - name: VP_SKIP_ARGO_HEALTHCHECK
+          value: "false"
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
