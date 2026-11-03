@@ -1,6 +1,6 @@
 # cluster-pipelines
 
-![Version: 0.0.14](https://img.shields.io/badge/Version-0.0.14-informational?style=flat-square)
+![Version: 0.0.15](https://img.shields.io/badge/Version-0.0.15-informational?style=flat-square)
 
 A Helm chart that deploys cluster provisioning pipelines
 
@@ -99,13 +99,9 @@ This chart is used to serve as the template for Validated Patterns Charts
 | qeCIPipelines.patterns.ramen.networking.spokeSecondary.clusterNetworkCidr | string | `"10.136.0.0/14"` |  |
 | qeCIPipelines.patterns.ramen.networking.spokeSecondary.machineNetworkCidr | string | `"10.2.0.0/16"` |  |
 | qeCIPipelines.patterns.ramen.networking.spokeSecondary.serviceNetworkCidr | string | `"172.32.0.0/16"` |  |
-| qeCIPipelines.patterns.ramen.ocp_versions[0] | string | `"4.20"` |  |
-| qeCIPipelines.patterns.ramen.ocp_versions[1] | string | `"4.21"` |  |
-| qeCIPipelines.patterns.ramen.ocp_versions[2] | string | `"4.22"` |  |
 | qeCIPipelines.patterns.ramen.platforms.aws.spokePrimaryRegion | string | `"us-west-1"` |  |
 | qeCIPipelines.patterns.ramen.platforms.aws.spokeSecondaryRegion | string | `"us-east-2"` |  |
 | qeCIPipelines.patterns.ramen.repo | string | `"https://github.com/validatedpatterns/ramendr-starter-kit.git"` |  |
-| qeCIPipelines.patterns.ramen.revision | string | `"main"` |  |
 | qeCIPipelines.patterns.ramen.secrets[0] | string | `"ramendr-secret-values-file"` |  |
 | qeCIPipelines.patterns.travelops.flavors.hosted | object | `{}` |  |
 | qeCIPipelines.patterns.travelops.flavors.single | object | `{}` |  |

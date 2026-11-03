@@ -50,6 +50,9 @@ Hosted cluster flavor: HyperShift hosted cluster (after metadata validation).
     - input: $(tasks.status)
       operator: in
       values: ["Completed"]
+    - input: "$(params.force-skip-cleanup)"
+      operator: in
+      values: ["false"]
   taskRef:
     kind: Task
     name: destroy-hosted-cluster

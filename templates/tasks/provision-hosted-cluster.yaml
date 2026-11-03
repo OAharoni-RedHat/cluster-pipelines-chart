@@ -147,10 +147,6 @@ spec:
 
     - name: generate-sts-creds
       image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
-      when:
-        - input: "$(steps.check-existing.results.cluster-exists)"
-          operator: in
-          values: ["false"]
       volumeMounts:
       - name: {{ .Values.qeCIPipelines.defaults.platforms.aws.credentialName }}
         mountPath: /tekton/home/.aws

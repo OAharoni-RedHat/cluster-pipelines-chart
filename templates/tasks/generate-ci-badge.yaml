@@ -61,7 +61,7 @@ spec:
       image: {{ .Values.qeCIPipelines.defaults.utilityContainerImg }}
       script: |
         #!/usr/bin/env bash
-
+        set -euo pipefail
 
         PIPELINERUN=$(params.pipelinerun-name)
         PIPELINE_NAMESPACE=$(params.pipelinerun-ns)
@@ -82,8 +82,9 @@ spec:
         SCHEMA_VERSION=1
         TRIGGER_SOURCE="cron"
 
-        if ! ls $(workspaces.kubeconfig.path)/*-kubeconfig &>/dev/null ; then
-            echo "kubeconfig not found for cluster, marking CI as infra failure"
+        INSTALL_STATUS=$(cat "$(workspaces.install-results.path)"/status 2>/dev/null)
+        if [ -z "$INSTALL_STATUS" ] ; then
+            echo "Install status not reported, marking CI as infra failure"
             COLOR="yellow"
             MESSAGE="FAILURE"
         else
@@ -91,10 +92,6 @@ spec:
             MESSAGE="FAILURE"
             TEST_STATUS=$(cat "$(workspaces.test-results.path)"/status 2>/dev/null)
             TEST_STATUS="${TEST_STATUS:-"failed"}"
-
-            INSTALL_STATUS=$(cat "$(workspaces.install-results.path)"/status 2>/dev/null)
-            INSTALL_STATUS="${INSTALL_STATUS:-"failed"}"
-
             if [[ "$TEST_STATUS" == "success" && "$INSTALL_STATUS" == "success" ]]; then
               COLOR="green"
               MESSAGE="SUCCESS"

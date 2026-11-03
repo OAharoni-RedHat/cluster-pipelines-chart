@@ -1,10 +1,10 @@
-suite: Test namespace with default values
+suite: Test ramendr pipelines
 templates:
   - templates/pipelines/standard-pipelines.yaml
 release:
   name: release-test
 tests:
-  - it: should output when defined as list
+  - it: should output correct amount of pipelines
     documentSelector:
       path: metadata.labels["pattern.name"]
       value: ramen
