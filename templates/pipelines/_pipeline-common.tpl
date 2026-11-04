@@ -36,7 +36,7 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
 */}}
 {{- define "qeCIPipelines.tasks.post-provision" -}}
 {{- $patternSecrets := list -}}
-{{- if .app.secrets -}}
+{{- if and (kindIs "map" .app)  .app.secrets -}}
 {{- range $i, $entry := .app.secrets -}}
 {{- $name := include "qeCIPipelines.patternSecretName" $entry -}}
 {{- $workspace := include "qeCIPipelines.secretWorkspaceName" $name -}}
@@ -99,7 +99,7 @@ Install, optional spoke import, tests, and diagnostics (after provisioning).
     {{- end }}
     - name: target-clustergroup
       value: {{ include "qeCIPipelines.targetClusterGroup" . | quote }}
-    {{- if .app.extraHelmOpts }}
+    {{- if and (kindIs "map" .app) .app.extraHelmOpts }}
     - name: extra-helm-opts
       value: {{ .app.extraHelmOpts  | quote }}
     {{- end }}
@@ -369,9 +369,17 @@ Shared finally tasks (not flavor-specific cleanup).
     name: generate-ci-badge
   params:
     - name: pattern-repo-url
+    {{- if eq .patternName "oper" }}
+      value: $(params.patterns-operator-repo-url)
+    {{- else }}
       value: $(params.pattern-repo-url)
+    {{- end }}
     - name: pattern-repo-revision
+    {{- if eq .patternName "oper" }}
+      value: $(params.patterns-operator-repo-revision)
+    {{- else }}
       value: $(params.pattern-repo-revision)
+    {{- end }}
     - name: platform
       value: {{ .platformName | quote }}
     - name: ocp-version

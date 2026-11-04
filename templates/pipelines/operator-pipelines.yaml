@@ -1,0 +1,527 @@
+{{- range $ocpVersion := $.Values.qeCIPipelines.patternsOperator.ocp_versions }}
+{{- $platformName := "aws" }}
+{{- $flavorName := "hosted" }}
+{{- $patternName := "oper" }}
+
+{{- $flavorCfg := dict "clusterGroup" "standalone" }}
+{{- $ctx := dict
+      "root" $
+      "app" "oper"
+      "patternName" $patternName
+      "platformName" $platformName
+      "ocpVersion" $ocpVersion
+      "flavorName" $flavorName
+      "flavorCfg" $flavorCfg
+      "namespace" $.Values.qeCIPipelines.defaults.namespace
+    }}
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: {{ printf "operator-upgrade-test-%s-%s-%s" $platformName ($ocpVersion | replace "." "-") $flavorName }}
+  namespace: {{ $.Values.qeCIPipelines.defaults.namespace }}
+  labels:
+    pattern.name: {{ $patternName }}
+    pattern.platform: {{ $platformName }}
+    pattern.ocp-version: {{ $ocpVersion | replace "." "-" }}
+    pattern.flavor: {{ $flavorName }}
+spec:
+  description: >
+    A pipeline to test the patterns-operator upgrade
+  params:
+    - name: pattern-repo-url
+      type: string
+      description: Git URL of the pattern to test (override for forks)
+      default: {{ $.Values.qeCIPipelines.patternsOperator.patternRepo }}
+    - name: pattern-repo-revision
+      type: string
+      description: Git revision (branch, tag, or SHA)
+      default:  {{ $.Values.qeCIPipelines.patternsOperator.patternRepoRevision | default "main" }} 
+    - name: patterns-operator-repo-url
+      type: string
+      description: Git URL of the operators repo to use (override for forks)
+      default: {{ $.Values.qeCIPipelines.patternsOperator.operatorRepo }}
+    - name: patterns-operator-repo-revision
+      type: string
+      description: Git revision (branch, tag, or SHA)
+      default:  {{ $.Values.qeCIPipelines.patternsOperator.operatorRepoRevision | default "main" }} 
+    - name: force-skip-cleanup
+      type: string
+      description: Skip cluster cleanup, even if everything is green
+      default: 'false'
+    - name: cluster-name-postfix
+      type: string
+      description: >
+        Optional Hive cluster name suffix (4-8 lowercase alphanumeric characters).
+        When empty, the random suffix from the PipelineRun name ({pipeline}-<suffix>) is
+        used so concurrent runs do not share a ClusterDeployment. Set to an existing
+        postfix (e.g. srfbxw from a prior PipelineRun name) to reuse that cluster.
+      default: ""
+  workspaces:
+    - name: shared-data
+  tasks:
+    {{- include "qeCIPipelines.tasks.setup" $ctx | nindent 4 }} # checkout pattern repo + metadata
+    {{- include "qeCIPipelines.provision.hosted" $ctx | nindent 4 }}
+    {{- include "qeCIPipelines.tasks.post-provision" $ctx | nindent 4 }} # install pattern, run first interop test + must gather if failed
+    - name: get-uniq-postfix
+      params:
+      - name: cluster-name-postfix
+        value: $(params.cluster-name-postfix)
+      - name: pipelinerun-name
+        value: $(context.pipelineRun.name)
+      - name: pipeline-name
+        value: $(context.pipeline.name)
+      - name: pipelinerun-uid
+        value: $(context.pipelineRun.uid)
+      taskSpec:
+        params:
+        - name: cluster-name-postfix
+        - name: pipelinerun-name
+        - name: pipeline-name
+        - name: pipelinerun-uid
+        results:
+          - name: postfix
+        steps:
+          - name: get-uniq-postfix
+            image: registry.access.redhat.com/ubi10-minimal:latest
+            script: |
+              #!/usr/bin/env bash
+              OVERRIDE_POSTFIX="$(params.cluster-name-postfix)"
+              if [ -n "${OVERRIDE_POSTFIX}" ]; then
+                if ! [[ "${OVERRIDE_POSTFIX}" =~ ^[a-z0-9]{4,8}$ ]]; then
+                  echo "cluster-name-postfix must be 4-8 lowercase alphanumeric characters when set" >&2
+                  exit 1
+                fi
+                POSTFIX="${OVERRIDE_POSTFIX}"
+              else
+                PIPELINE_NAME="$(params.pipeline-name)"
+                RUN_NAME="$(params.pipelinerun-name)"
+                PREFIX="${PIPELINE_NAME}-"
+                if [[ -n "${RUN_NAME}" && -n "${PIPELINE_NAME}" && "${RUN_NAME}" == "${PREFIX}"* ]]; then
+                  POSTFIX="${RUN_NAME#${PREFIX}}"
+                else
+                  POSTFIX=""
+                fi
+                if [[ -z "${POSTFIX}" || ! "${POSTFIX}" =~ ^[a-z0-9]{4,8}$ ]]; then
+                  PIPELINERUN_UID="$(params.pipelinerun-uid)"
+                  if [ -z "${PIPELINERUN_UID}" ]; then
+                    echo "could not derive cluster name postfix from PipelineRun name; pipelinerun-uid is required for fallback" >&2
+                    exit 1
+                  fi
+                  HEX_UID="${PIPELINERUN_UID//-/}"
+                  HEX_UID="${HEX_UID,,}"
+                  POSTFIX="${HEX_UID:0:5}"
+                  echo "Using UID fragment for cluster name postfix (PipelineRun name did not match ${PREFIX}<suffix>)" >&2
+                fi
+              fi
+              echo -n ${POSTFIX} > "$(results.postfix.path)"
+
+    - name: checkout-operator-repo
+      runAfter:
+        - get-uniq-postfix
+      taskRef:
+        kind: Task
+        name: clone-git-repo
+      workspaces:
+        - name: output-repo
+          workspace: shared-data
+      params:
+        - name: URL
+          value: $(params.patterns-operator-repo-url)
+        - name: REVISION
+          value: $(params.patterns-operator-repo-revision)
+        - name: SUBDIR
+          value: patterns-operator
+
+    - name: build-patterns-operator
+      runAfter:
+        - checkout-operator-repo
+      taskRef:
+        resolver: cluster
+        params:
+        - name: kind
+          value: task
+        - name: name
+          value: buildah
+        - name: namespace
+          value: openshift-pipelines
+      params:
+        - name: kind
+          value: task
+        - name: name
+          value: buildah
+        - name: namespace
+          value: openshift-pipelines
+        - name: IMAGE
+          value:  {{ $.Values.qeCIPipelines.patternsOperator.baseUploadRegistry }}/patterns-operator:9.9.9-$(tasks.get-uniq-postfix.results.postfix)
+        - name: DOCKERFILE
+          value: "./patterns-operator/Dockerfile"
+        - name: CONTEXT
+          value: "./patterns-operator/"
+        - name: BUILD_EXTRA_ARGS
+          value: "--label quay.expires-after={{ $.Values.qeCIPipelines.patternsOperator.imageExpiry }}"
+      workspaces:
+        - name: source
+          workspace: shared-data
+          subdir: patterns-operator
+
+    - name: build-console-plugin
+      runAfter:
+        - checkout-operator-repo
+      taskRef:
+        resolver: cluster
+        params:
+        - name: kind
+          value: task
+        - name: name
+          value: buildah
+        - name: namespace
+          value: openshift-pipelines
+      params:
+        - name: IMAGE
+          value: {{ $.Values.qeCIPipelines.patternsOperator.baseUploadRegistry }}/patterns-operator-console:9.9.9-$(tasks.get-uniq-postfix.results.postfix)
+        - name: DOCKERFILE
+          value: "./patterns-operator/console-plugin.Dockerfile"
+        - name: CONTEXT
+          value: "./patterns-operator/"
+        - name: BUILD_EXTRA_ARGS
+          value: "--label quay.expires-after={{ $.Values.qeCIPipelines.patternsOperator.imageExpiry }}"
+      workspaces:
+        - name: source
+          workspace: shared-data
+          subdir: patterns-operator
+
+    - name: generate-bundle
+      runAfter:
+        - checkout-operator-repo
+      params:
+        - name: target-version
+          value: 9.9.9-$(tasks.get-uniq-postfix.results.postfix)
+        - name: upload-registry
+          value:  {{ $.Values.qeCIPipelines.patternsOperator.baseUploadRegistry }}
+      workspaces:
+        - name: source
+          workspace: shared-data
+          subdir: patterns-operator
+      taskSpec:
+        params:
+          - name: target-version
+          - name: upload-registry
+        results:
+        workspaces:
+          - name: source
+        steps:
+          - name: generate-bundle
+            image: quay.io/operator-framework/operator-sdk:v1.42
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              cd "$(workspaces.source.path)/patterns-operator"
+              make VERSION=$(params.target-version) UPLOADREGISTRY=$(params.upload-registry) \
+              CHANNELS=fast bundle generate
+
+    - name: build-bundle
+      runAfter:
+        - generate-bundle
+      taskRef:
+        resolver: cluster
+        params:
+        - name: kind
+          value: task
+        - name: name
+          value: buildah
+        - name: namespace
+          value: openshift-pipelines
+      params:
+        - name: kind
+          value: task
+        - name: name
+          value: buildah
+        - name: namespace
+          value: openshift-pipelines
+        - name: IMAGE
+          value:  {{ $.Values.qeCIPipelines.patternsOperator.baseUploadRegistry }}/patterns-operator-bundle:9.9.9-$(tasks.get-uniq-postfix.results.postfix)
+        - name: DOCKERFILE
+          value: "./patterns-operator/bundle.Dockerfile"
+        - name: CONTEXT
+          value: "./patterns-operator/"
+        - name: BUILD_EXTRA_ARGS
+          value: "--label quay.expires-after={{ $.Values.qeCIPipelines.patternsOperator.imageExpiry }}"
+      workspaces:
+        - name: source
+          workspace: shared-data
+          subdir: patterns-operator
+
+    - name: generate-catalog
+      runAfter:
+        - build-console-plugin
+        - build-patterns-operator
+        - build-bundle
+      params:
+        - name: target-version
+          value: 9.9.9-$(tasks.get-uniq-postfix.results.postfix)
+        - name: upload-registry
+          value:  {{ $.Values.qeCIPipelines.patternsOperator.baseUploadRegistry }}
+      workspaces:
+        - name: source
+          workspace: shared-data
+          subdir: patterns-operator
+      taskSpec:
+        params:
+          - name: target-version
+          - name: upload-registry
+        results:
+          - name: current-version
+        workspaces:
+          - name: source
+        steps:
+          - name: get-current-operator-version
+            image: {{ $.Values.qeCIPipelines.defaults.utilityContainerImg }}
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              cd "$(workspaces.source.path)/patterns-operator"
+              git fetch --tags
+              CURRENT_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
+              echo ${CURRENT_TAG} > $(results.current-version.path)
+
+          - name: generate-catalog
+            image: quay.io/operator-framework/operator-sdk:v1.42
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              cd "$(workspaces.source.path)/patterns-operator"
+
+              CURRENT_TAG=$(cat $(results.current-version.path))
+
+              cat > catalog/template.yaml<<EOF
+              ---
+              schema: olm.template.basic
+              entries:
+                - schema: olm.package
+                  name: patterns-operator
+                  defaultChannel: fast
+                - schema: olm.channel
+                  package: patterns-operator
+                  name: fast
+                  entries:
+                  - name: patterns-operator.v${CURRENT_TAG}
+                  - name: patterns-operator.v$(params.target-version)
+                    replaces: patterns-operator.v${CURRENT_TAG}
+                - schema: olm.bundle
+                  image: quay.io/community-operator-pipeline-prod/patterns-operator:${CURRENT_TAG}
+                - schema: olm.bundle
+                  image: $(params.upload-registry)/patterns-operator-bundle:$(params.target-version)
+              EOF
+              make opm
+
+              export HOME="$(workspaces.source.path)"
+              export XDG_CONFIG_HOME="${HOME}/.config"
+
+              mkdir -p "${HOME}/.config/containers"
+
+              # 2. Write the insecure accept policy file
+              cat > "${HOME}/.config/containers/policy.json" <<EOF
+              {
+                  "default": [
+                      {
+                          "type": "insecureAcceptAnything"
+                      }
+                  ]
+              }
+              EOF
+
+              ./bin/opm --skip-tls-verify alpha render-template basic -o yaml < catalog/template.yaml > catalog/catalog.yaml
+
+    - name: build-catalog
+      runAfter:
+        - generate-catalog
+      taskRef:
+        resolver: cluster
+        params:
+        - name: kind
+          value: task
+        - name: name
+          value: buildah
+        - name: namespace
+          value: openshift-pipelines
+      params:
+        - name: kind
+          value: task
+        - name: name
+          value: buildah
+        - name: namespace
+          value: openshift-pipelines
+        - name: IMAGE
+          value: {{ $.Values.qeCIPipelines.patternsOperator.baseUploadRegistry }}/patterns-operator-catalog:latest
+        - name: DOCKERFILE
+          value: "./patterns-operator/catalog/Dockerfile"
+        - name: CONTEXT
+          value: "./patterns-operator/catalog/"
+        - name: BUILD_EXTRA_ARGS
+          value: "--label quay.expires-after={{ $.Values.qeCIPipelines.patternsOperator.imageExpiry }}"
+      workspaces:
+        - name: source
+          workspace: shared-data
+          subdir: patterns-operator
+
+    - name: apply-catalog
+      runAfter:
+        - build-catalog
+      params:
+        - name: upload-registry
+          value:  {{ $.Values.qeCIPipelines.patternsOperator.baseUploadRegistry }}
+        - name: cluster-name
+          value: $(tasks.provision-hosted-cluster.results.cluster-name)
+      workspaces:
+      - name: kubeconfig
+        workspace: shared-data
+        subPath: kubeconfig
+      taskSpec:
+        params:
+          - name: upload-registry
+          - name: cluster-name
+        results:
+        workspaces:
+          - name: kubeconfig
+        steps:
+          - name: apply-catalog
+            image: {{ $.Values.qeCIPipelines.defaults.utilityContainerImg }}
+            env:
+              - name: KUBECONFIG
+                value: $(workspaces.kubeconfig.path)/$(params.cluster-name)-kubeconfig
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              oc apply -f - <<EOF
+              ---
+              apiVersion: operators.coreos.com/v1alpha1
+              kind: CatalogSource
+              metadata:
+                name: test-pattern-operator
+                namespace: openshift-marketplace
+              spec:
+                displayName: Test Pattern Operator
+                sourceType: grpc
+                image: $(params.upload-registry)/patterns-operator-catalog:latest
+              EOF
+
+    - name: upgrade-patterns-operator
+      runAfter:
+        - apply-catalog
+        - interop-test
+      params:
+        - name: upload-registry
+          value:  {{ $.Values.qeCIPipelines.patternsOperator.baseUploadRegistry }}
+        - name: cluster-name
+          value: $(tasks.provision-hosted-cluster.results.cluster-name)
+      workspaces:
+      - name: kubeconfig
+        workspace: shared-data
+        subPath: kubeconfig
+      - name: test-results
+        workspace: shared-data
+        subPath: test-results
+      taskSpec:
+        params:
+          - name: upload-registry
+          - name: cluster-name
+        results:
+        workspaces:
+          - name: kubeconfig
+          - name: test-results
+        steps:
+          - name: apply-catalog
+            image: {{ $.Values.qeCIPipelines.defaults.utilityContainerImg }}
+            env:
+              - name: KUBECONFIG
+                value: $(workspaces.kubeconfig.path)/$(params.cluster-name)-kubeconfig
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              TEST_STATUS=$(cat "$(workspaces.test-results.path)"/status 2>/dev/null)
+              TEST_STATUS="${TEST_STATUS:-"failed"}"
+
+
+              if [[ "$TEST_STATUS" == "failed" ]]; then
+                echo "Skipping pattern-operator upgrade, due to failed interop tests"
+                exit 1
+              fi
+
+              oc patch -n patterns-operator subscription.operators.coreos.com/patterns-operator --type=json -p '[{"op": "replace", "path": "/spec/source", "value": "test-pattern-operator"}]'
+
+    - name: post-upgrade-interop-test
+      onError: continue
+      runAfter:
+        - upgrade-patterns-operator
+      taskRef:
+        kind: Task
+        name: interop-test
+      params:
+        - name: hub-cluster-name
+          value: $(tasks.provision-hosted-cluster.results.cluster-name)
+        - name: target-clustergroup
+          value: {{ include "qeCIPipelines.targetClusterGroup" $ctx | quote }}
+      workspaces:
+        - name: test-results
+          workspace: shared-data
+          subPath: test-results
+        - name: pattern-repo
+          workspace: shared-data
+          subPath: pattern-repo
+        - name: kubeconfig
+          workspace: shared-data
+          subPath: kubeconfig
+
+    - name: post-upgrade-must-gather-hub
+      runAfter:
+        - post-upgrade-interop-test
+      taskRef:
+        kind: Task
+        name: must-gather
+      params:
+        - name: cluster-name
+          value: $(tasks.provision-hosted-cluster.results.cluster-name)
+      workspaces:
+        - name: kubeconfig
+          workspace: shared-data
+          subPath: kubeconfig
+        - name: must-gather
+          workspace: shared-data
+          subPath: must-gather
+        - name: test-results
+          workspace: shared-data
+          subPath: test-results
+        - name: install-results
+          workspace: shared-data
+          subPath: install-results
+
+    - name: post-upgrade-upload-must-gather
+      runAfter:
+        - post-upgrade-must-gather-hub
+      when:
+        - input: $(tasks.post-upgrade-must-gather-hub.results.outcome)
+          operator: in
+          values: ["success"]
+      taskRef:
+        kind: Task
+        name: upload-must-gather
+      workspaces:
+        - name: must-gather
+          workspace: shared-data
+          subPath: must-gather
+      params:
+        - name: pipeline-name
+          value: $(context.pipeline.name)
+        - name: pipelinerun-id
+          value: $(context.pipelineRun.uid)
+
+  finally:
+    {{- include "qeCIPipelines.cleanup.hosted" . | nindent 4 }}
+    {{- include "qeCIPipelines.finally.common" $ctx | nindent 4 }}
+{{- end }}
