@@ -7,8 +7,9 @@ metadata:
     {{- include "pipelines.labels" . | nindent 4 }}
 spec:
   description: >
-    Poll hub-side DRPlacementControl resources until all are Deployed and Available,
-    or time out after 15 minutes. On timeout, logs a warning and continues — does not
+    Poll hub-side DRPlacementControl resources until all are Deployed with
+    Available=True and PeerReady=True (matching interop-test criteria), or time
+    out after 15 minutes. On timeout, logs a warning and continues — does not
     fail the pipeline so that interop-test can still run and report partial results.
   params:
     - name: hub-cluster-name
@@ -45,8 +46,16 @@ spec:
         POLL_INTERVAL=30
         MAX_ATTEMPTS=$(( TIMEOUT_MINUTES * 60 / POLL_INTERVAL ))
 
+        # Healthy = phase Deployed + Available=True + PeerReady=True.
         printf '%s\n' \
           'import subprocess, json, sys' \
+          '' \
+          'def cond_status(conds, ctype):' \
+          '    for c in conds:' \
+          '        if c.get("type") == ctype:' \
+          '            return c.get("status", "False"), c.get("reason", ""), c.get("message", "")' \
+          '    return "False", "condition missing", ""' \
+          '' \
           'try:' \
           '    raw = subprocess.check_output(' \
           '        ["oc", "get", "drpc", "--all-namespaces", "-o", "json"],' \
@@ -66,20 +75,24 @@ spec:
           '    name  = drpc["metadata"]["name"]' \
           '    phase = drpc.get("status", {}).get("phase", "<unknown>")' \
           '    conds = drpc.get("status", {}).get("conditions", [])' \
-          '    available = next((c["status"] for c in conds if c.get("type") == "Available"), "False")' \
-          '    healthy = (phase == "Deployed" and available == "True")' \
+          '    available, avail_reason, _ = cond_status(conds, "Available")' \
+          '    peer_ready, peer_reason, peer_msg = cond_status(conds, "PeerReady")' \
+          '    healthy = (phase == "Deployed" and available == "True" and peer_ready == "True")' \
           '    mark = "OK" if healthy else "WAIT"' \
-          '    print("  [{}] {}/{}: phase={}, Available={}".format(mark, ns, name, phase, available))' \
+          '    print("  [{}] {}/{}: phase={}, Available={} ({}), PeerReady={} ({})".format(' \
+          '        mark, ns, name, phase, available, avail_reason or "-", peer_ready, peer_reason or "-"))' \
+          '    if not healthy and peer_ready != "True" and peer_msg:' \
+          '        print("       PeerReady message: {}".format(peer_msg))' \
           '    if not healthy:' \
           '        all_healthy = False' \
           'sys.exit(0 if all_healthy else 1)' \
           > /tmp/check_drpc.py
 
-        echo "Polling DRPlacementControl health (timeout: ${TIMEOUT_MINUTES}m, interval: ${POLL_INTERVAL}s)..."
+        echo "Polling DRPlacementControl health (Deployed + Available + PeerReady; timeout: ${TIMEOUT_MINUTES}m, interval: ${POLL_INTERVAL}s)..."
         for attempt in $(seq 1 $MAX_ATTEMPTS); do
           echo "[attempt ${attempt}/${MAX_ATTEMPTS} — $(date -u '+%H:%M:%S UTC')]"
           if python3 /tmp/check_drpc.py; then
-            echo "All DRPCs are Deployed and Available."
+            echo "All DRPCs are Deployed, Available, and PeerReady."
             echo -n "success" > $(results.outcome.path)
             exit 0
           fi
